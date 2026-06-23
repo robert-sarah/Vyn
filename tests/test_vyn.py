@@ -5,10 +5,12 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from vyn.ast.nodes import AssignStmt, IfStmt, TryStmt
 from vyn.lexer import Lexer, TokenKind
 from vyn.parser import Parser
 from vyn.semantic import SemanticAnalyzer
 from vyn.interpreter import run_source
+from vyn.ast.nodes import AssignStmt, IfStmt, TryStmt
 
 
 class TestLexer(unittest.TestCase):
@@ -61,7 +63,7 @@ class TestParser(unittest.TestCase):
         src = "fn main() -> i32 { let mut x: i32 = 0; x += 2; return x; }"
         prog = Parser(src).parse()
         self.assertIsInstance(prog.functions[0].body[1], type(prog.functions[0].body[0]).__bases__[0] if False else object)
-        from vyn.ast.nodes import AssignStmt
+        from vyn.ast.nodes import AssignStmt, IfStmt, TryStmt
         self.assertIsInstance(prog.functions[0].body[1], AssignStmt)
 
     def test_loop_in(self):
@@ -112,6 +114,108 @@ class TestStdlibRuntime(unittest.TestCase):
         self.assertEqual(n, 42)
 
 
+class TestParserFlexible(unittest.TestCase):
+    def test_match_without_parens(self):
+        src = """fn main() -> i32 {
+            let json: i32 = 1;
+            match json {
+                case 0: return 0;
+                default: return 1;
+            }
+            return 0;
+        }"""
+        prog = Parser(src).parse()
+        self.assertEqual(prog.functions[0].name, "main")
+
+    def test_if_without_parens(self):
+        src = "fn main() -> i32 { if x == 0 { return 1; } return 0; }"
+        prog = Parser(src).parse()
+        self.assertIsInstance(prog.functions[0].body[0], IfStmt)
+
+    def test_try_catch_flexible(self):
+        src = """fn main() -> i32 {
+            try { throw 0; } catch e { return 0; }
+            return 0;
+        }"""
+        prog = Parser(src).parse()
+        self.assertIsInstance(prog.functions[0].body[0], TryStmt)
+
+    def test_match_json_variable(self):
+        src = """fn f(json: i32) -> i32 {
+            match json {
+                case 1: return 10;
+                else: return 0;
+            }
+            return 0;
+        }
+        fn main() -> i32 { return f(1); }"""
+        prog = Parser(src).parse()
+        self.assertEqual(len(prog.functions), 2)
+
+
+class TestVPM(unittest.TestCase):
+    def test_vpm_install(self):
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, "-m", "vpm", "install"],
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn("installed", r.stdout)
+
+
+class TestLanguageFeatures(unittest.TestCase):
+    def test_match_enum_try(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "examples", "match_demo.vyn")
+        with open(path, encoding="utf-8") as f:
+            code = run_source(f.read())
+        self.assertEqual(code, 0)
+
+    def test_db_demo(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "examples", "db_demo.vyn")
+        with open(path, encoding="utf-8") as f:
+            code = run_source(f.read())
+        self.assertEqual(code, 0)
+
+
+class TestLanguageServer(unittest.TestCase):
+    def test_member_completion_io(self):
+        from vynstudio.language_server import SERVER
+        names = [s.name for s in SERVER.complete_member("io")]
+        self.assertIn("println", names)
+        self.assertIn("print", names)
+
+    def test_namespace_before_dot(self):
+        from vynstudio.language_server import SERVER
+        self.assertEqual(SERVER.namespace_before_dot("    io."), "io")
+        self.assertIsNone(SERVER.namespace_before_dot("    io.println"))
+
+    def test_vendor_serde(self):
+        from vynstudio.language_server import SERVER
+        names = [s.name for s in SERVER.complete_member("serde")]
+        self.assertIn("serialize", names)
+
+    def test_numpy_members(self):
+        from vynstudio.language_server import SERVER
+        names = [s.name for s in SERVER.complete_member("numpy")]
+        self.assertIn("array", names)
+        self.assertIn("mean", names)
+        self.assertGreaterEqual(len(names), 8)
+
+    def test_call_snippet_with_args(self):
+        from vynstudio.language_server import VynLanguageServer
+        text, pos = VynLanguageServer.call_snippet("relu", "relu(x: i32) -> i32")
+        self.assertEqual(text, "relu()")
+        self.assertEqual(pos, 5)
+
+    def test_call_snippet_no_args(self):
+        from vynstudio.language_server import VynLanguageServer
+        text, pos = VynLanguageServer.call_snippet("run", "run() -> void")
+        self.assertEqual(text, "run()")
+        self.assertEqual(pos, 4)
+
+
 class TestInterpreter(unittest.TestCase):
     def test_break_continue(self):
         src = """fn main() -> i32 {
@@ -137,6 +241,23 @@ class TestInterpreter(unittest.TestCase):
         path = os.path.join(os.path.dirname(__file__), "..", "examples", "package_demo.vyn")
         with open(path, encoding="utf-8") as f:
             code = run_source(f.read())
+        self.assertEqual(code, 0)
+
+    def test_ai_train(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "examples", "ai_train.vyn")
+        with open(path, encoding="utf-8") as f:
+            code = run_source(f.read())
+        self.assertEqual(code, 0)
+
+    def test_ml_numpy(self):
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            self.skipTest("numpy not installed")
+        code = run_source(
+            'import std.io;\nimport std.numpy;\n'
+            'fn main() -> i32 { let a = numpy.array([1.0,2.0,3.0]); io.println(numpy.mean(a)); return 0; }'
+        )
         self.assertEqual(code, 0)
 
     def test_ffi_run(self):

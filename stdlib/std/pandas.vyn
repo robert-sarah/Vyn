@@ -1,0 +1,6 @@
+// std.pandas — data frames
+pub fn version() -> str { return ""; }
+pub fn read_csv(path: str) -> str { return ""; }
+pub fn rows(df: str) -> i32 { return 0; }
+pub fn mean(df: str, col: str) -> f32 { return 0.0; }
+pub fn head_json(df: str, n: i32) -> str { return ""; }

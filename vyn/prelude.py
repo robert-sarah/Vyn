@@ -12,7 +12,7 @@ USE_SYMBOLS = {
     "print", "println", "sleep", "clamp", "lerp", "window", "run",
     "label", "button", "abs", "sqrt", "len", "parse", "exists", "read", "write",
     "escape", "page", "h1", "route", "listen", "get", "post", "stringify",
-    "now_ms", "sha256", "serialize", "version",
+    "now_ms", "sha256", "serialize", "version", "train", "predict", "model_new",
 }
 
 

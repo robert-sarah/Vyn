@@ -1,0 +1,4 @@
+// std.plot — Matplotlib charts
+pub fn version() -> str { return ""; }
+pub fn line(path: str, xs: i32, ys: i32, title: str) -> i32 { return 0; }
+pub fn hist(path: str, data: i32) -> i32 { return 0; }

@@ -1,9 +1,10 @@
-// Serveur web Vyn — HTML + CSS + routes
+// Vyn web server — HTML + CSS + routes
 import std.io;
 import std.log;
 import std.html;
 import std.css;
 import std.server;
+import std.sys;
 
 fn home() -> str {
     let styles = css.stylesheet(
@@ -14,25 +15,29 @@ fn home() -> str {
         css.class("hero", "color", "#4ec9b0")
     );
     return html.page("Vyn Server", html.body(
-        html.div(html.h1("Serveur Vyn"), "hero"),
-        html.p("Langage systeme + web integre"),
+        html.div(html.h1("Vyn Server"), "hero"),
+        html.p("System language with integrated web stack"),
         html.a("Documentation", "/about")
     ), styles);
 }
 
 fn about() -> str {
-    return html.page("A propos", html.body(
+    return html.page("About", html.body(
         html.h1("Vyn Package Manager"),
-        html.p("Les packages VPM ajoutent des bibliotheques reutilisables."),
-        html.a("Accueil", "/")
+        html.p("VPM packages add reusable libraries to your project."),
+        html.a("Home", "/")
     ));
 }
 
 fn main() -> i32 {
-    log.info("Demarrage serveur Vyn...");
+    log.info("Starting Vyn server...");
     server.route("/", "home");
     server.route("/about", "about");
-    io.println("Ouvrez http://127.0.0.1:8080 dans votre navigateur");
-    server.listen(8080);
+    server.listen_async(8080);
+    io.println("Open http://127.0.0.1:8080 in your browser");
+    io.println("Press Stop in VynStudio to end the server");
+    loop {
+        sys.sleep(1000);
+    }
     return 0;
 }

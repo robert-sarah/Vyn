@@ -1,11 +1,13 @@
 [package]
 name = "vyn"
 version = "0.1.0"
-authors = ["Vyn Team"]
+authors = ['Vyn Team']
 description = "Langage système Vyn — compilateur & runtime"
 
 [dependencies]
 serde = "1.0"
+ai = "1.0"
+db = "1.0.0"
 
 [build]
 target = "native"

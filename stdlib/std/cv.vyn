@@ -1,0 +1,6 @@
+// std.cv — OpenCV image processing
+pub fn version() -> str { return ""; }
+pub fn read_size(path: str) -> str { return ""; }
+pub fn grayscale(src: str, dst: str) -> i32 { return 0; }
+pub fn resize(src: str, dst: str, w: i32, h: i32) -> i32 { return 0; }
+pub fn blur(src: str, dst: str) -> i32 { return 0; }

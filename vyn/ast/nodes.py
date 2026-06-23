@@ -97,6 +97,7 @@ class Program:
     structs: List[StructDecl]
     functions: List[FunctionDecl]
     impls: List[ImplBlock]
+    enums: List["EnumDecl"] = field(default_factory=list)
     init_stmts: List["Stmt"] = field(default_factory=list)
 
 
@@ -216,11 +217,42 @@ class BreakStmt:
 
 
 @dataclass
+class EnumDecl:
+    name: str
+    variants: List[str]
+    visibility: Visibility = Visibility.PRIVATE
+
+
+@dataclass
+class MatchCase:
+    pattern: Optional[Expr]  # None = default/else
+    body: List["Stmt"]
+
+
+@dataclass
+class MatchStmt:
+    expr: Expr
+    cases: List[MatchCase]
+
+
+@dataclass
+class TryStmt:
+    body: List["Stmt"]
+    catch_var: str
+    catch_body: List["Stmt"]
+
+
+@dataclass
+class ThrowStmt:
+    value: Expr
+
+
+@dataclass
 class ContinueStmt:
     pass
 
 
 Stmt = Union[
     LetStmt, AssignStmt, ReturnStmt, ExprStmt,
-    IfStmt, LoopStmt, BreakStmt, ContinueStmt,
+    IfStmt, LoopStmt, BreakStmt, ContinueStmt, MatchStmt, TryStmt, ThrowStmt,
 ]

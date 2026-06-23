@@ -1,10 +1,44 @@
 """Analyse sémantique — typage statique & ownership."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Optional
 
 from vyn.ast.nodes import *
+from vyn.parser import Parser as VynParser
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+STDLIB = ROOT / "stdlib"
+VENDOR = ROOT / "vendor"
+
+_STD_SYMBOLS = [
+    ("io", ("print", "println", "print_int", "print_i32")),
+    ("sys", ("sleep",)),
+    ("math", ("abs", "sqrt", "clamp", "lerp")),
+    ("log", ("info", "error", "warn", "debug")),
+    ("str", ("len", "upper", "lower", "trim", "contains", "replace")),
+    ("fs", ("exists", "read", "write", "remove", "list_dir")),
+    ("json", ("parse", "stringify", "parse_int")),
+    ("time", ("now_ms", "now_sec", "format")),
+    ("net", ("ping", "resolve", "get", "post")),
+    ("http", ("get", "post", "ok", "not_found")),
+    ("server", ("route", "listen", "listen_async", "serve_static", "stop")),
+    ("html", ("page", "h1", "h2", "p", "div", "a", "escape", "style")),
+    ("css", ("rule", "class", "stylesheet")),
+    ("db", ("open", "exec", "query", "close")),
+    ("ai", ("model_new", "train", "predict", "loss", "epochs", "save", "load")),
+    ("numpy", ("version", "array", "zeros", "ones", "mean", "dot", "shape", "reshape")),
+    ("torch", ("version", "tensor", "relu", "train_linear", "save", "load")),
+    ("tensorflow", ("version", "train_xor", "predict")),
+    ("cv", ("version", "read_size", "grayscale", "resize", "blur")),
+    ("pandas", ("version", "read_csv", "rows", "mean", "head_json")),
+    ("sklearn", ("version", "fit_linear", "predict", "score")),
+    ("plot", ("version", "line", "hist")),
+    ("gui", ("window", "label", "button", "run", "alert")),
+    ("vec", ("new", "push", "len", "get", "set")),
+    ("rand", ("seed", "next_f32", "next_i32")),
+]
 
 
 @dataclass
@@ -42,21 +76,20 @@ class SemanticAnalyzer:
         self.hot_functions: list[str] = []
 
     def _builtin_scope(self) -> Dict[str, Symbol]:
-        return {
-            "io.print": Symbol("io.print", TypeNode("fn", [TypeNode("f32")]), False),
-            "io.println": Symbol("io.println", TypeNode("fn", [TypeNode("str")]), False),
-            "sys.sleep": Symbol("sys.sleep", TypeNode("fn", [TypeNode("i32")]), False),
-            "math.clamp": Symbol("math.clamp", TypeNode("fn", [TypeNode("f32"), TypeNode("f32"), TypeNode("f32")]), False),
-            "math.lerp": Symbol("math.lerp", TypeNode("fn", [TypeNode("f32"), TypeNode("f32"), TypeNode("f32")]), False),
-            "math.abs": Symbol("math.abs", TypeNode("fn", [TypeNode("f32")]), False),
-            "math.sqrt": Symbol("math.sqrt", TypeNode("fn", [TypeNode("f32")]), False),
-        }
+        syms: Dict[str, Symbol] = {}
+        for mod, methods in _STD_SYMBOLS:
+            for m in methods:
+                syms[f"{mod}.{m}"] = Symbol(f"{mod}.{m}", TypeNode("fn"), False)
+        return syms
 
     def analyze(self, program: Program) -> None:
         for imp in program.imports:
             self._resolve_import(imp)
+            self._load_module_symbols(imp.path)
         for u in getattr(program, "uses", []):
             self._resolve_import(ImportDecl(u.path))
+            self._load_module_symbols(u.path)
+        self._load_manifest_deps()
         for ext in program.externs:
             self.externs[ext.name] = ext
         for s in program.structs:
@@ -81,21 +114,50 @@ class SemanticAnalyzer:
         if self.errors:
             raise SemanticError("\n".join(self.errors))
 
+    def _load_module_symbols(self, path: str) -> None:
+        for base, suffix in ((VENDOR, "lib.vyn"), (STDLIB, ".vyn")):
+            if suffix == "lib.vyn":
+                lib = base / path / "lib.vyn"
+            else:
+                lib = base / f"{path.replace('.', '/')}.vyn"
+            if lib.exists():
+                try:
+                    sub = VynParser(lib.read_text(encoding="utf-8")).parse()
+                    for fn in sub.functions:
+                        self.functions[fn.name] = fn
+                except Exception:
+                    pass
+                break
+
+    def _load_manifest_deps(self) -> None:
+        manifest = ROOT / "vyn.toml"
+        if not manifest.exists():
+            return
+        try:
+            try:
+                import tomllib
+            except ImportError:
+                import tomli as tomllib  # type: ignore
+            data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+            for dep in data.get("dependencies", {}):
+                self._load_module_symbols(dep)
+        except Exception:
+            pass
+
     def _resolve_import(self, imp: ImportDecl) -> None:
         allowed = {"std.io", "std.sys", "std.mem", "std.math", "std.str",
                    "std.net", "std.sync", "std.fs", "std.json", "std.time",
                    "std.gui", "std.log", "std.vec", "std.rand", "std.hash",
                    "std.array", "std.thread", "std.crypto", "std.html", "std.css",
-                   "std.server", "std.http"}
+                   "std.server", "std.http", "std.ai", "std.db",
+                   "std.numpy", "std.torch", "std.tensorflow", "std.cv",
+                   "std.pandas", "std.sklearn", "std.plot"}
         if imp.path in allowed or imp.path.startswith("std."):
             return
-        # Packages VPM dans vendor/
-        from pathlib import Path
-        vendor = Path(__file__).resolve().parent.parent.parent / "vendor"
-        pkg = vendor / imp.path / "lib.vyn"
+        pkg = VENDOR / imp.path / "lib.vyn"
         if pkg.exists():
             return
-        self.errors.append(f"import inconnu: {imp.path} (stdlib ou vpm add {imp.path})")
+        self.errors.append(f"unknown import: {imp.path} (vpm add {imp.path})")
 
     def _push(self) -> None:
         self.scopes.append({})
@@ -105,7 +167,7 @@ class SemanticAnalyzer:
 
     def _define(self, sym: Symbol) -> None:
         if sym.name in self.scopes[-1]:
-            self.errors.append(f"symbole redéfini: {sym.name}")
+            self.errors.append(f"redefined symbol: {sym.name}")
         self.scopes[-1][sym.name] = sym
 
     def _lookup(self, name: str) -> Optional[Symbol]:
@@ -142,7 +204,7 @@ class SemanticAnalyzer:
             if isinstance(stmt.target, Identifier):
                 sym = self._lookup(stmt.target.name)
                 if sym and not sym.is_mut:
-                    self.errors.append(f"assignation à variable immutable: {stmt.target.name}")
+                    self.errors.append(f"cannot assign to immutable: {stmt.target.name}")
                 else:
                     self._infer(stmt.value)
         elif isinstance(stmt, ReturnStmt):
@@ -165,6 +227,27 @@ class SemanticAnalyzer:
                 self._check_stmt(s, ret)
             if stmt.iterator:
                 self._pop()
+        elif isinstance(stmt, MatchStmt):
+            self._infer(stmt.expr)
+            for case in stmt.cases:
+                if case.pattern:
+                    self._infer(case.pattern)
+                for s in case.body:
+                    self._check_stmt(s, ret)
+        elif isinstance(stmt, TryStmt):
+            for s in stmt.body:
+                self._check_stmt(s, ret)
+            self._push()
+            self._define(Symbol(stmt.catch_var, TypeNode("str"), False))
+            for s in stmt.catch_body:
+                self._check_stmt(s, ret)
+            self._pop()
+        elif isinstance(stmt, ThrowStmt):
+            self._infer(stmt.value)
+        elif isinstance(stmt, BreakStmt):
+            pass
+        elif isinstance(stmt, ContinueStmt):
+            pass
         elif isinstance(stmt, ExprStmt):
             self._infer(stmt.expr)
 
@@ -182,7 +265,7 @@ class SemanticAnalyzer:
         if isinstance(expr, Identifier):
             sym = self._lookup(expr.name)
             if not sym:
-                self.errors.append(f"identifiant inconnu: {expr.name}")
+                self.errors.append(f"unknown identifier: {expr.name}")
                 return TypeNode("void")
             return sym.type
         if isinstance(expr, BinaryOp):
@@ -205,13 +288,13 @@ class SemanticAnalyzer:
                 sym = self._lookup(name)
                 if sym:
                     return sym.type.args[-1] if sym.type.name == "fn" else TypeNode("void")
-                self.errors.append(f"fonction inconnue: {name}")
+                self.errors.append(f"unknown function: {name}")
             return TypeNode("void")
         if isinstance(expr, MemberAccess):
             return TypeNode("fn")
         if isinstance(expr, StructInit):
             if expr.struct_name not in self.structs:
-                self.errors.append(f"struct inconnu: {expr.struct_name}")
+                self.errors.append(f"unknown struct: {expr.struct_name}")
             return TypeNode(expr.struct_name)
         if isinstance(expr, ArrayLiteral):
             if expr.repeat:
@@ -225,13 +308,13 @@ class SemanticAnalyzer:
     def _infer_member_call(self, access: MemberAccess, args: list[Expr]) -> TypeNode:
         qual = access.object
         method = access.member
-        if isinstance(qual, Identifier) and qual.name in ("io", "sys", "math"):
+        if isinstance(qual, Identifier):
             full = f"{qual.name}.{method}"
             sym = self._lookup(full)
             if sym:
                 return TypeNode("void")
-        if isinstance(qual, Identifier):
-            key = f"{qual.name}.{method}"
-            if key in self.functions:
-                return self.functions[key].return_type
+            if full in self.functions:
+                return self.functions[full].return_type
+            if method in self.functions:
+                return self.functions[method].return_type
         return TypeNode("void")

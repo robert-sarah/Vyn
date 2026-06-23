@@ -1,4 +1,4 @@
-// L'annotation @[profile] genere un rapport en temps reel dans VynStudio
+// @[profile] generates real-time telemetry in VynStudio
 @[profile]
 fn process_data(input: [f32; 500]) -> f32 {
     let mut sum: f32 = 0.0;

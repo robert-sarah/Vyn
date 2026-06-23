@@ -1,0 +1,29 @@
+// Package ai v1.0 — train and deploy neural networks
+import std.ai;
+import std.io;
+
+pub fn version() -> str {
+    return "1.0.0";
+}
+
+pub fn create_classifier(name: str) -> str {
+    return ai.model_new(name, 2, 8, 1);
+}
+
+pub fn train_classifier(model: str, epochs: i32) -> f32 {
+    return ai.train(model, epochs, 0.15);
+}
+
+pub fn predict_score(model: str, x: f32) -> f32 {
+    return ai.predict(model, x);
+}
+
+pub fn report(model: str) -> i32 {
+    io.println("AI training report");
+    io.println(ai.loss(model));
+    return 0;
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

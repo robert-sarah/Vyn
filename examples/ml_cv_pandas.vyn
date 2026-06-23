@@ -1,0 +1,17 @@
+// OpenCV + Pandas bindings demo
+import std.io;
+import std.cv;
+import std.pandas;
+
+fn main() -> i32 {
+    io.println(cv.version());
+    io.println(pandas.version());
+
+    let df = pandas.read_csv("examples/data/sample.csv");
+    io.println(pandas.rows(df));
+    io.println(pandas.mean(df, "y"));
+    io.println(pandas.head_json(df, 2));
+
+    io.println("cv + pandas demo OK");
+    return 0;
+}

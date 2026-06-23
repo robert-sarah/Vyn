@@ -32,6 +32,9 @@ class Interpreter:
         self.globals: Dict[str, Any] = {}
         self.scopes: List[Dict[str, VynValue]] = [self._builtin_scope()]
         self.structs: Dict[str, StructDecl] = {s.name: s for s in program.structs}
+        self.enums: Dict[str, Dict[str, int]] = {}
+        for e in getattr(program, "enums", []):
+            self.enums[e.name] = {v: i for i, v in enumerate(e.variants)}
         self.functions: Dict[str, FunctionDecl] = {}
         self.impl_methods: Dict[str, FunctionDecl] = {}
         for fn in program.functions:
@@ -167,6 +170,45 @@ class Interpreter:
             raise _BreakLoop()
         elif isinstance(stmt, ContinueStmt):
             raise _ContinueLoop()
+        elif isinstance(stmt, MatchStmt):
+            val = self._eval(stmt.expr)
+            matched = False
+            for case in stmt.cases:
+                if case.pattern is None:
+                    if not matched:
+                        for s in case.body:
+                            r = self._exec_stmt(s, struct_name)
+                            if r and r[0] == "return":
+                                return r
+                    break
+                elif self._eval(case.pattern) == val:
+                    matched = True
+                    for s in case.body:
+                        r = self._exec_stmt(s, struct_name)
+                        if r and r[0] == "return":
+                            return r
+                    break
+        elif isinstance(stmt, TryStmt):
+            try:
+                for s in stmt.body:
+                    r = self._exec_stmt(s, struct_name)
+                    if r and r[0] == "return":
+                        return r
+            except _BreakLoop:
+                raise
+            except _ContinueLoop:
+                raise
+            except Exception as e:
+                self._push()
+                self._set(stmt.catch_var, str(e), "str", False)
+                for s in stmt.catch_body:
+                    r = self._exec_stmt(s, struct_name)
+                    if r and r[0] == "return":
+                        self._pop()
+                        return r
+                self._pop()
+        elif isinstance(stmt, ThrowStmt):
+            raise RuntimeError(str(self._eval(stmt.value)))
         elif isinstance(stmt, ExprStmt):
             self._eval(stmt.expr)
 
@@ -206,6 +248,8 @@ class Interpreter:
         if isinstance(expr, CallExpr):
             return self._call(expr)
         if isinstance(expr, MemberAccess):
+            if isinstance(expr.object, Identifier) and expr.object.name in self.enums:
+                return self.enums[expr.object.name].get(expr.member, 0)
             if isinstance(expr.object, Identifier) and expr.object.name == "self":
                 return self._get("self").data.get(expr.member)
             obj = self._eval(expr.object)

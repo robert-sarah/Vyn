@@ -1,5 +1,19 @@
+# Vyn — core
 llvmlite>=0.43.0
 PyQt5>=5.15.10
 tomli>=2.0.1; python_version < "3.11"
 watchdog>=4.0.0
 pygments>=2.17.0
+
+# Offline AI (GGUF)
+llama-cpp-python>=0.2.0
+
+# ML bindings (optional — install what you need)
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+opencv-python>=4.8.0
+# torch and tensorflow are large — install manually:
+# pip install torch
+# pip install tensorflow

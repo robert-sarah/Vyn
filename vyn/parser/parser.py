@@ -30,7 +30,7 @@ class ParseError(Exception):
     col: int
 
     def __str__(self) -> str:
-        return f"[Parser] ligne {self.line}, col {self.col}: {self.message}"
+        return f"[Parser] line {self.line}, col {self.col}: {self.message}"
 
 
 class Parser:
@@ -39,7 +39,7 @@ class Parser:
         self.pos = 0
 
     def parse(self) -> Program:
-        imports, uses, externs, structs, functions, impls, init_stmts = [], [], [], [], [], [], []
+        imports, uses, externs, structs, functions, impls, enums, init_stmts = [], [], [], [], [], [], [], []
         while not self._check(TokenKind.EOF):
             if self._check(TokenKind.AT):
                 functions.append(self._parse_function(attributes=self._parse_attributes()))
@@ -49,6 +49,8 @@ class Parser:
                 uses.append(self._parse_use())
             elif self._match(TokenKind.EXTERN):
                 externs.append(self._parse_extern())
+            elif self._match(TokenKind.ENUM):
+                enums.append(self._parse_enum())
             elif self._match(TokenKind.STRUCT):
                 structs.append(self._parse_struct())
             elif self._match(TokenKind.IMPL):
@@ -63,21 +65,57 @@ class Parser:
                 elif self._check(TokenKind.STRUCT):
                     self._advance()
                     structs.append(self._parse_struct(visibility=Visibility.PUBLIC))
+                elif self._check(TokenKind.ENUM):
+                    self._advance()
+                    enums.append(self._parse_enum(visibility=Visibility.PUBLIC))
                 else:
-                    self._error("pub doit preceder fn ou struct")
+                    self._error("pub must precede fn, struct, or enum")
             elif self._check(TokenKind.FN):
                 functions.append(self._parse_function())
             else:
-                # Instructions au niveau module: log.info(), let x, loop {}, etc.
                 init_stmts.append(self._parse_stmt())
-        return Program(imports, uses, externs, structs, functions, impls, init_stmts)
+        return Program(imports, uses, externs, structs, functions, impls, enums, init_stmts)
 
-    def _parse_ident(self, ctx: str = "identifiant") -> str:
+    def _parse_enum(self, visibility: Visibility = Visibility.PRIVATE) -> EnumDecl:
+        name = self._parse_ident("enum")
+        self._expect(TokenKind.LBRACE)
+        variants = []
+        while not self._check(TokenKind.RBRACE):
+            variants.append(self._parse_ident("variant"))
+            self._match(TokenKind.COMMA)
+        self._expect(TokenKind.RBRACE)
+        self._match(TokenKind.SEMI)
+        return EnumDecl(name, variants, visibility)
+
+    def _parse_paren_expr(self) -> Expr:
+        """Expression with optional parentheses: (x) or x"""
+        if self._match(TokenKind.LPAREN):
+            e = self._parse_expr()
+            self._expect(TokenKind.RPAREN)
+            return e
+        return self._parse_expr()
+
+    def _expect_semi(self) -> None:
+        """Semicolon optional before closing brace (Rust/C style)."""
+        if self._check(TokenKind.RBRACE) or self._check(TokenKind.EOF):
+            return
+        self._expect(TokenKind.SEMI)
+
+    def _parse_case_body(self) -> List[Stmt]:
+        """Case body: { block } or single statement."""
+        if self._check(TokenKind.LBRACE):
+            self._expect(TokenKind.LBRACE)
+            body = self._parse_block()
+            self._expect(TokenKind.RBRACE)
+            return body
+        return [self._parse_stmt()]
+
+    def _parse_ident(self, ctx: str = "identifier") -> str:
         tok = self._peek()
         if tok.kind in _IDENT_KINDS:
             self._advance()
             return tok.value
-        self._error(f"{ctx} attendu, trouve '{tok.value}'")
+        self._error(f"{ctx} expected, found '{tok.value}'")
         return tok.value
 
     def _parse_use(self) -> UseDecl:
@@ -224,32 +262,40 @@ class Parser:
         if self._match(TokenKind.LET):
             return self._parse_let()
         if self._match(TokenKind.RETURN):
-            val = None if self._check(TokenKind.SEMI) else self._parse_expr()
-            self._expect(TokenKind.SEMI)
+            val = None if self._check(TokenKind.SEMI) or self._check(TokenKind.RBRACE) else self._parse_expr()
+            self._expect_semi()
             return ReturnStmt(val)
         if self._match(TokenKind.IF):
             return self._parse_if()
         if self._match(TokenKind.LOOP):
             return self._parse_loop()
+        if self._match(TokenKind.MATCH):
+            return self._parse_match()
+        if self._match(TokenKind.TRY):
+            return self._parse_try()
+        if self._match(TokenKind.THROW):
+            val = self._parse_expr()
+            self._expect_semi()
+            return ThrowStmt(val)
         if self._match(TokenKind.BREAK):
-            self._expect(TokenKind.SEMI)
+            self._expect_semi()
             return BreakStmt()
         if self._match(TokenKind.CONTINUE):
-            self._expect(TokenKind.SEMI)
+            self._expect_semi()
             return ContinueStmt()
 
         expr = self._parse_expr()
         if self._match(TokenKind.EQ):
             val = self._parse_expr()
-            self._expect(TokenKind.SEMI)
+            self._expect_semi()
             return AssignStmt(expr, val)
         for op, tok in (("+", TokenKind.PLUSEQ), ("-", TokenKind.MINUSEQ),
                         ("*", TokenKind.STAREQ), ("/", TokenKind.SLASHEQ)):
             if self._match(tok):
                 rhs = self._parse_expr()
-                self._expect(TokenKind.SEMI)
+                self._expect_semi()
                 return AssignStmt(expr, BinaryOp(op, expr, rhs))
-        self._expect(TokenKind.SEMI)
+        self._expect_semi()
         return ExprStmt(expr)
 
     def _parse_let(self) -> LetStmt:
@@ -259,22 +305,60 @@ class Parser:
         if self._match(TokenKind.COLON):
             typ = self._parse_type()
         val = self._parse_expr() if self._match(TokenKind.EQ) else None
-        self._expect(TokenKind.SEMI)
+        self._expect_semi()
         return LetStmt(name, typ, val, is_mut)
 
     def _parse_if(self) -> IfStmt:
-        self._expect(TokenKind.LPAREN)
-        cond = self._parse_expr()
-        self._expect(TokenKind.RPAREN)
+        cond = self._parse_paren_expr()
         self._expect(TokenKind.LBRACE)
         then_body = self._parse_block()
         self._expect(TokenKind.RBRACE)
         else_body = None
         if self._match(TokenKind.ELSE):
-            self._expect(TokenKind.LBRACE)
-            else_body = self._parse_block()
-            self._expect(TokenKind.RBRACE)
+            if self._check(TokenKind.IF):
+                else_body = [self._parse_if()]
+            else:
+                self._expect(TokenKind.LBRACE)
+                else_body = self._parse_block()
+                self._expect(TokenKind.RBRACE)
         return IfStmt(cond, then_body, else_body)
+
+    def _parse_match(self) -> MatchStmt:
+        expr = self._parse_paren_expr()
+        self._expect(TokenKind.LBRACE)
+        cases: List[MatchCase] = []
+        while not self._check(TokenKind.RBRACE) and not self._check(TokenKind.EOF):
+            if self._match(TokenKind.ELSE):
+                self._match(TokenKind.COLON)
+                cases.append(MatchCase(None, self._parse_case_body()))
+            elif self._peek().value in ("default", "_") and self._peek().kind in _IDENT_KINDS:
+                self._advance()
+                self._match(TokenKind.COLON)
+                cases.append(MatchCase(None, self._parse_case_body()))
+            else:
+                self._expect(TokenKind.CASE)
+                pat = self._parse_expr()
+                self._match(TokenKind.COLON)
+                cases.append(MatchCase(pat, self._parse_case_body()))
+        self._expect(TokenKind.RBRACE)
+        return MatchStmt(expr, cases)
+
+    def _parse_try(self) -> TryStmt:
+        self._expect(TokenKind.LBRACE)
+        body = self._parse_block()
+        self._expect(TokenKind.RBRACE)
+        var = "err"
+        catch_body: List[Stmt] = []
+        if self._match(TokenKind.CATCH):
+            if self._match(TokenKind.LPAREN):
+                var = self._parse_ident("catch variable")
+                self._match(TokenKind.RPAREN)
+            elif self._peek().kind in _IDENT_KINDS:
+                var = self._parse_ident("catch variable")
+            self._expect(TokenKind.LBRACE)
+            catch_body = self._parse_block()
+            self._expect(TokenKind.RBRACE)
+        return TryStmt(body, var, catch_body)
 
     def _parse_loop(self) -> LoopStmt:
         iterator = None
@@ -439,7 +523,7 @@ class Parser:
         if self._check(kind):
             return self._advance()
         tok = self._peek()
-        self._error(f"'{kind.name}' attendu, trouve '{tok.value}' ({tok.kind.name})")
+        self._error(f"expected '{kind.name}', found '{tok.value}' ({tok.kind.name})")
         return tok
 
     def _error(self, message: str) -> None:

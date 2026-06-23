@@ -6,6 +6,7 @@ import html as html_lib
 import json
 import random
 import socket
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -16,6 +17,15 @@ from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from vyn.interpreter import Interpreter
+
+_db_conns: Dict[str, sqlite3.Connection] = {}
+_db_counter = 0
+
+
+def _db_new_id() -> str:
+    global _db_counter
+    _db_counter += 1
+    return f"db_{_db_counter}"
 
 
 # --- HTTP Server ---
@@ -442,6 +452,45 @@ def dispatch(mod: str, method: str, args: list, interpreter: Optional["Interpret
                     v.append(0)
                 v[i] = args[2]
             return v
+
+    if mod == "db":
+        if method == "open":
+            path = str(args[0])
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(path)
+            cid = _db_new_id()
+            _db_conns[cid] = conn
+            return cid
+        if method == "exec":
+            conn = _db_conns.get(str(args[0]))
+            if conn:
+                conn.execute(str(args[1]))
+                conn.commit()
+            return 0
+        if method == "query":
+            conn = _db_conns.get(str(args[0]))
+            if not conn:
+                return "[]"
+            cur = conn.execute(str(args[1]))
+            rows = cur.fetchall()
+            return json.dumps(rows)
+        if method == "close":
+            conn = _db_conns.pop(str(args[0]), None)
+            if conn:
+                conn.close()
+            return 0
+
+    if mod == "ai":
+        from vyn.ai_runtime import dispatch_ai
+        result = dispatch_ai(method, args)
+        if result is not None:
+            return result
+
+    if mod in ("numpy", "torch", "tensorflow", "cv", "pandas", "sklearn", "plot"):
+        from vyn.ml_runtime import dispatch_ml
+        result = dispatch_ml(mod, method, args)
+        if result is not None:
+            return result
 
     if mod == "math":
         if method == "abs":

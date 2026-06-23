@@ -1,0 +1,7 @@
+// std.torch — PyTorch tensors & training
+pub fn version() -> str { return ""; }
+pub fn tensor(data: i32) -> str { return ""; }
+pub fn relu(x: i32) -> i32 { return 0; }
+pub fn train_linear(epochs: i32) -> f32 { return 0.0; }
+pub fn save(handle: str, path: str) -> i32 { return 0; }
+pub fn load(path: str) -> str { return ""; }

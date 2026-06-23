@@ -1,15 +1,22 @@
-// Modifie le retour ici, sauvegarde, et le binaire se met à jour en live
+// Hot reload demo — edit adjust_bias(), save, re-run
+import std.io;
+import std.sys;
+
 hot fn adjust_bias(current: f32) -> f32 {
     return current + 0.05;
 }
 
 fn main() -> i32 {
     let mut bias: f32 = 0.1;
+    let mut steps: i32 = 0;
     loop {
         bias = adjust_bias(bias);
         io.print(bias);
-        sys.sleep(1000);
+        sys.sleep(500);
+        steps += 1;
+        if (steps >= 5) {
+            break;
+        }
     }
     return 0;
 }
-

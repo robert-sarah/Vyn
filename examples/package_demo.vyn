@@ -1,11 +1,11 @@
-// Demo packages VPM — serde, collections, neural
+// VPM packages demo — serde, collections, neural
 import std.io;
 import serde;
 import collections;
 import neural;
 
 fn main() -> i32 {
-    io.println("=== Packages VPM ===");
+    io.println("=== VPM Packages ===");
 
     io.println("serde OK");
     let json = serialize(42);
@@ -19,6 +19,6 @@ fn main() -> i32 {
     let y = relu(-1.5);
     io.println(y);
 
-    io.println("Packages VPM operationnels.");
+    io.println("All packages working.");
     return 0;
 }

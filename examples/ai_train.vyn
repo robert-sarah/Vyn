@@ -1,0 +1,21 @@
+// AI training demo — VPM package + std.ai
+import std.io;
+import std.ai;
+import ai;
+
+fn main() -> i32 {
+    io.println("=== Vyn AI Training ===");
+
+    let model = create_classifier("xor-demo");
+    let loss = train_classifier(model, 200);
+    io.println(loss);
+
+    let score = predict_score(model, 1.0);
+    io.println(score);
+
+    ai.save(model, "dist/xor_model.json");
+    report(model);
+
+    io.println("Model saved to dist/xor_model.json");
+    return 0;
+}

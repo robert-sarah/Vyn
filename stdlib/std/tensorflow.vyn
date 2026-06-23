@@ -1,0 +1,4 @@
+// std.tensorflow — TensorFlow / Keras
+pub fn version() -> str { return ""; }
+pub fn train_xor(epochs: i32) -> f32 { return 0.0; }
+pub fn predict(x: f32, y: f32) -> f32 { return 0.0; }

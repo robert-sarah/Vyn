@@ -1,0 +1,5 @@
+// std.db — SQLite database
+pub fn open(path: str) -> str { return ""; }
+pub fn exec(conn: str, sql: str) -> i32 { return 0; }
+pub fn query(conn: str, sql: str) -> str { return ""; }
+pub fn close(conn: str) -> i32 { return 0; }

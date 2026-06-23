@@ -1,0 +1,16 @@
+// SQLite database demo
+import std.io;
+import std.db;
+
+fn main() -> i32 {
+    let conn = db.open("dist/demo.db");
+    db.exec(conn, "CREATE TABLE IF NOT EXISTS users (id INTEGER, name TEXT)");
+    db.exec(conn, "DELETE FROM users");
+    db.exec(conn, "INSERT INTO users VALUES (1, 'Alice')");
+    db.exec(conn, "INSERT INTO users VALUES (2, 'Bob')");
+    let rows = db.query(conn, "SELECT * FROM users");
+    io.println(rows);
+    db.close(conn);
+    io.println("Database demo OK");
+    return 0;
+}

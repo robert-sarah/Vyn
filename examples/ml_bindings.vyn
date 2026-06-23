@@ -1,0 +1,36 @@
+// ML bindings demo — numpy, torch, tensorflow, sklearn, plot
+import std.io;
+import std.numpy;
+import std.torch;
+import std.tensorflow;
+import std.sklearn;
+import std.plot;
+
+fn main() -> i32 {
+    io.println("=== Vyn ML Bindings ===");
+
+    io.println(numpy.version());
+    let data = numpy.array([1.0, 2.0, 3.0, 4.0]);
+    io.println(numpy.mean(data));
+    io.println(numpy.dot(data, data));
+
+    io.println(torch.version());
+    let loss = torch.train_linear(30);
+    io.println(loss);
+
+    io.println(tensorflow.version());
+    let xor_loss = tensorflow.train_xor(50);
+    io.println(xor_loss);
+
+    io.println(sklearn.version());
+    let xs = [1.0, 2.0, 3.0, 4.0];
+    let ys = [2.0, 4.0, 6.0, 8.0];
+    let model = sklearn.fit_linear(xs, ys);
+    io.println(sklearn.predict(model, 5.0));
+
+    plot.line("dist/ml_plot.png", xs, ys, "Linear data");
+    io.println("Saved dist/ml_plot.png");
+
+    io.println("ML bindings demo OK");
+    return 0;
+}

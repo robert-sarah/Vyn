@@ -1,0 +1,8 @@
+// Package db — SQLite wrapper
+import std.db;
+pub fn version() -> str { return "1.0.0"; }
+pub fn open(path: str) -> str { return db.open(path); }
+pub fn exec(conn: str, sql: str) -> i32 { return db.exec(conn, sql); }
+pub fn query(conn: str, sql: str) -> str { return db.query(conn, sql); }
+pub fn close(conn: str) -> i32 { return db.close(conn); }
+pub fn init() -> i32 { return 0; }

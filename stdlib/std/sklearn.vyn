@@ -1,0 +1,5 @@
+// std.sklearn — scikit-learn ML
+pub fn version() -> str { return ""; }
+pub fn fit_linear(xs: i32, ys: i32) -> str { return ""; }
+pub fn predict(model: str, x: f32) -> f32 { return 0.0; }
+pub fn score(model: str, xs: i32, ys: i32) -> f32 { return 0.0; }

@@ -1,0 +1,9 @@
+// std.numpy — NumPy arrays & math
+pub fn version() -> str { return ""; }
+pub fn array(data: i32) -> i32 { return 0; }
+pub fn zeros(n: i32) -> i32 { return 0; }
+pub fn ones(n: i32) -> i32 { return 0; }
+pub fn mean(arr: i32) -> f32 { return 0.0; }
+pub fn dot(a: i32, b: i32) -> f32 { return 0.0; }
+pub fn shape(arr: i32) -> i32 { return 0; }
+pub fn reshape(arr: i32, n: i32) -> i32 { return 0; }

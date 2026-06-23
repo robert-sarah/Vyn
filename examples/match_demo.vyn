@@ -1,0 +1,45 @@
+// Match, enum, try/catch demo
+import std.io;
+
+enum Status {
+    Ok,
+    Warn,
+    Error,
+}
+
+fn label_status(s: i32) -> str {
+    match (s) {
+        case 0: {
+            return "OK";
+        }
+        case 1: {
+            return "Warning";
+        }
+        else: {
+            return "Error";
+        }
+    }
+    return "Unknown";
+}
+
+fn risky(x: i32) -> i32 {
+    if (x == 0) {
+        throw 0;
+    }
+    return 100 / x;
+}
+
+fn main() -> i32 {
+    io.println(label_status(Status.Ok));
+    io.println(label_status(Status.Error));
+
+    try {
+        let v = risky(0);
+        io.println(v);
+    } catch (e) {
+        io.println("caught error");
+    }
+
+    io.println("match/enum/try demo OK");
+    return 0;
+}

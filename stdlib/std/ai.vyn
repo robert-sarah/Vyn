@@ -1,0 +1,8 @@
+// std.ai — neural network training runtime
+pub fn model_new(name: str, inputs: i32, hidden: i32, outputs: i32) -> str { return ""; }
+pub fn train(model: str, epochs: i32, lr: f32) -> f32 { return 0.0; }
+pub fn predict(model: str, x: f32) -> f32 { return 0.0; }
+pub fn loss(model: str) -> f32 { return 0.0; }
+pub fn epochs(model: str) -> i32 { return 0; }
+pub fn save(model: str, path: str) -> i32 { return 0; }
+pub fn load(path: str) -> str { return ""; }
