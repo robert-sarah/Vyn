@@ -1,0 +1,5 @@
+// std.net — reseau
+pub fn ping(host: str) -> i32 { return 0; }
+pub fn resolve(host: str) -> str { return ""; }
+pub fn get(url: str) -> str { return ""; }
+pub fn post(url: str, body: str) -> str { return ""; }

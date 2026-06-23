@@ -1,0 +1,5 @@
+// std.log — journalisation
+pub fn info(msg: str) -> void { return; }
+pub fn error(msg: str) -> void { return; }
+pub fn warn(msg: str) -> void { return; }
+pub fn debug(msg: str) -> void { return; }

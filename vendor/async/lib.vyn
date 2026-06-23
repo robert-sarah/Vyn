@@ -1,0 +1,17 @@
+// Package async v0.9 — taches legeres
+pub fn version() -> str {
+    return "0.9.0";
+}
+
+pub fn defer_ms(ms: i32) -> i32 {
+    thread.sleep_ms(ms);
+    return 0;
+}
+
+pub fn yield_now() -> i32 {
+    return sync.yield_task();
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

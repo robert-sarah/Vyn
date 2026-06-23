@@ -1,0 +1,15 @@
+// Modifie le retour ici, sauvegarde, et le binaire se met à jour en live
+hot fn adjust_bias(current: f32) -> f32 {
+    return current + 0.05;
+}
+
+fn main() -> i32 {
+    let mut bias: f32 = 0.1;
+    loop {
+        bias = adjust_bias(bias);
+        io.print(bias);
+        sys.sleep(1000);
+    }
+    return 0;
+}
+

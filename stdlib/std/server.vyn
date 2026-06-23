@@ -1,0 +1,6 @@
+// std.server — serveur HTTP integre
+pub fn route(path: str, handler: str) -> i32 { return 0; }
+pub fn serve_static(path: str) -> i32 { return 0; }
+pub fn listen(port: i32) -> i32 { return 0; }
+pub fn listen_async(port: i32) -> i32 { return 0; }
+pub fn stop() -> i32 { return 0; }

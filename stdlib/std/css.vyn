@@ -1,0 +1,5 @@
+// std.css — generation CSS
+pub fn rule(selector: str, prop: str, value: str) -> str { return ""; }
+pub fn class(name: str, prop: str, value: str) -> str { return ""; }
+pub fn id(name: str, prop: str, value: str) -> str { return ""; }
+pub fn stylesheet(rule1: str) -> str { return ""; }

@@ -1,0 +1,6 @@
+// std.fs — fichiers
+pub fn exists(path: str) -> bool { return false; }
+pub fn read(path: str) -> str { return ""; }
+pub fn write(path: str, content: str) -> i32 { return 0; }
+pub fn remove(path: str) -> i32 { return 0; }
+pub fn list_dir(path: str) -> i32 { return 0; }

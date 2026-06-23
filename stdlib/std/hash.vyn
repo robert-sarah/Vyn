@@ -1,0 +1,3 @@
+// std.hash — hachage
+pub fn fnv1a(data: str) -> i32 { return 0; }
+pub fn md5_stub(data: str) -> str { return ""; }

@@ -1,0 +1,6 @@
+// std.gui — applications graphiques natives (tkinter)
+// gui.window(title, width, height)
+// gui.label(id, text, x, y)
+// gui.button(id, text, x, y, callback_id)
+// gui.alert(msg)
+// gui.run()

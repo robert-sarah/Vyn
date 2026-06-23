@@ -1,0 +1,17 @@
+// Exemple GUI Vyn — exécution réelle tkinter
+import std.gui;
+use std.io.println;
+
+fn on_click() -> void {
+    gui.alert("Bienvenue dans Vyn GUI!");
+}
+
+fn main() -> i32 {
+    gui.window("Vyn App", 480, 320);
+    gui.label("lbl1", "Hello Vyn GUI comment ça va ?!", 80, 60);
+    gui.label("lbl2", "Clique le bouton ci-dessous", 60, 100);
+    gui.button("btn1", "Cliquer", 160, 160, "on_click");
+    io.println("Lancement interface graphique...");
+    gui.run();
+    return 0;
+}

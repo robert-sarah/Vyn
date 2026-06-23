@@ -1,0 +1,29 @@
+// Package neural v0.1 — activation hot-swap
+pub fn version() -> str {
+    return "0.1.0";
+}
+
+hot fn activate(x: f32) -> f32 {
+    if (x > 0.0) {
+        return x;
+    }
+    return 0.0;
+}
+
+pub fn relu(x: f32) -> f32 {
+    return activate(x);
+}
+
+pub fn sigmoid(x: f32) -> f32 {
+    if (x > 6.0) {
+        return 1.0;
+    }
+    if (x < -6.0) {
+        return 0.0;
+    }
+    return 0.5 + x * 0.08;
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

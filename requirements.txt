@@ -1,0 +1,5 @@
+llvmlite>=0.43.0
+PyQt5>=5.15.10
+tomli>=2.0.1; python_version < "3.11"
+watchdog>=4.0.0
+pygments>=2.17.0

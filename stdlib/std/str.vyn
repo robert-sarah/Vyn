@@ -1,0 +1,7 @@
+// std.str — chaines
+pub fn len(s: str) -> i32 { return 0; }
+pub fn upper(s: str) -> str { return ""; }
+pub fn lower(s: str) -> str { return ""; }
+pub fn trim(s: str) -> str { return ""; }
+pub fn contains(s: str, sub: str) -> bool { return false; }
+pub fn replace(s: str, from: str, to: str) -> str { return ""; }

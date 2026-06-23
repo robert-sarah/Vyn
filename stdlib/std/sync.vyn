@@ -1,0 +1,4 @@
+// std.sync — synchronisation (stub)
+pub fn yield_task() -> void {
+    return;
+}

@@ -1,0 +1,21 @@
+// Package serde v1.0 — serialisation JSON
+// Usage: import serde;  let s = serialize(42);
+pub fn version() -> str {
+    return "1.0.0";
+}
+
+pub fn serialize(val: i32) -> str {
+    return json.stringify(val);
+}
+
+pub fn serialize_str(text: str) -> str {
+    return json.stringify(text);
+}
+
+pub fn deserialize(text: str) -> i32 {
+    return json.parse_int(text);
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

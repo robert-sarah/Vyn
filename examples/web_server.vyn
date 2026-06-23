@@ -1,0 +1,38 @@
+// Serveur web Vyn — HTML + CSS + routes
+import std.io;
+import std.log;
+import std.html;
+import std.css;
+import std.server;
+
+fn home() -> str {
+    let styles = css.stylesheet(
+        css.rule("body", "font-family", "Segoe UI, sans-serif"),
+        css.rule("body", "background", "#1e1e1e"),
+        css.rule("body", "color", "#d4d4d4"),
+        css.class("hero", "font-size", "2rem"),
+        css.class("hero", "color", "#4ec9b0")
+    );
+    return html.page("Vyn Server", html.body(
+        html.div(html.h1("Serveur Vyn"), "hero"),
+        html.p("Langage systeme + web integre"),
+        html.a("Documentation", "/about")
+    ), styles);
+}
+
+fn about() -> str {
+    return html.page("A propos", html.body(
+        html.h1("Vyn Package Manager"),
+        html.p("Les packages VPM ajoutent des bibliotheques reutilisables."),
+        html.a("Accueil", "/")
+    ));
+}
+
+fn main() -> i32 {
+    log.info("Demarrage serveur Vyn...");
+    server.route("/", "home");
+    server.route("/about", "about");
+    io.println("Ouvrez http://127.0.0.1:8080 dans votre navigateur");
+    server.listen(8080);
+    return 0;
+}

@@ -1,0 +1,4 @@
+// std.json — JSON
+pub fn parse(text: str) -> i32 { return 0; }
+pub fn stringify(val: i32) -> str { return ""; }
+pub fn parse_int(text: str) -> i32 { return 0; }

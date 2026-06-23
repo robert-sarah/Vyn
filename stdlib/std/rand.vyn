@@ -1,0 +1,4 @@
+// std.rand — nombres aléatoires
+pub fn seed(s: i32) -> void { return; }
+pub fn next_f32() -> f32 { return 0.5; }
+pub fn next_i32(min: i32, max: i32) -> i32 { return min; }

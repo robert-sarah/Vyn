@@ -1,0 +1,13 @@
+[package]
+name = "vyn"
+version = "0.1.0"
+authors = ["Vyn Team"]
+description = "Langage système Vyn — compilateur & runtime"
+
+[dependencies]
+serde = "1.0"
+
+[build]
+target = "native"
+optimize = 2
+entry = "examples/profile.vyn"

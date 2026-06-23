@@ -1,0 +1,23 @@
+import std.sys;
+
+extern "C" {
+    fn raw_hardware_call(id: i32) -> i32;
+}
+
+struct Controller {
+    mut id: i32;
+}
+
+impl Controller {
+    fn execute(self) -> i32 {
+        return raw_hardware_call(self.id);
+    }
+}
+
+fn main() -> i32 {
+    let c = Controller { id: 101 };
+    let status = c.execute();
+    io.println("FFI Controller execute:");
+    io.print(status);
+    return status;
+}

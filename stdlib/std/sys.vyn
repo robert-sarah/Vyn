@@ -1,0 +1,2 @@
+// std.sys — appels système
+// sys.sleep(ms) géré nativement.

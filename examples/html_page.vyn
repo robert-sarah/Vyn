@@ -1,0 +1,25 @@
+// Generation HTML/CSS pure
+import std.io;
+import std.html;
+import std.css;
+import std.fs;
+
+fn main() -> i32 {
+    let styles = css.stylesheet(
+        css.rule("body", "margin", "0"),
+        css.rule("body", "padding", "2rem"),
+        css.rule("body", "background", "#0d1117"),
+        css.rule("body", "color", "#c9d1d9"),
+        css.class("title", "color", "#58a6ff")
+    );
+
+    let page = html.page("Vyn HTML", html.body(
+        html.div(html.h1("Page generee en Vyn"), "title"),
+        html.p("HTML et CSS natifs dans le langage."),
+        html.a("Site Vyn", "https://github.com")
+    ), styles);
+
+    fs.write("dist/page.html", page);
+    io.println("Page ecrite: dist/page.html");
+    return 0;
+}

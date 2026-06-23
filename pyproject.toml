@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vyn-lang"
+version = "0.1.0"
+description = "Vyn — langage système compilé LLVM"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "llvmlite>=0.43.0",
+    "PyQt5>=5.15.10",
+    "watchdog>=4.0.0",
+    "pygments>=2.17.0",
+]
+
+[project.scripts]
+vync = "vyn.cli:main"
+vynstudio = "vynstudio.main:main"
+vpm = "vpm:main"
+
+[tool.setuptools.packages.find]
+include = ["vyn*", "vynstudio*", "vpm*"]

@@ -1,0 +1,5 @@
+// std.http — client HTTP
+pub fn get(url: str) -> str { return ""; }
+pub fn post(url: str, body: str) -> str { return ""; }
+pub fn ok(body: str) -> str { return ""; }
+pub fn not_found() -> str { return ""; }

@@ -1,0 +1,32 @@
+// Package collections v1.0 — structures de donnees
+pub fn version() -> str {
+    return "1.0.0";
+}
+
+pub fn stack_new() -> i32 {
+    return vec.new();
+}
+
+pub fn stack_push(st: i32, val: i32) -> i32 {
+    return vec.push(st, val);
+}
+
+pub fn stack_pop(st: i32) -> i32 {
+    let n = vec.len(st);
+    if (n == 0) {
+        return 0;
+    }
+    return vec.get(st, n - 1);
+}
+
+pub fn queue_new() -> i32 {
+    return vec.new();
+}
+
+pub fn queue_enqueue(q: i32, val: i32) -> i32 {
+    return vec.push(q, val);
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

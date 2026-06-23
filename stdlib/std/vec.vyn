@@ -1,0 +1,5 @@
+// std.vec — vecteurs dynamiques (stub)
+pub fn new() -> i32 { return 0; }
+pub fn push(v: i32, val: f32) -> void { return; }
+pub fn len(v: i32) -> i32 { return 0; }
+pub fn get(v: i32, idx: i32) -> f32 { return 0.0; }

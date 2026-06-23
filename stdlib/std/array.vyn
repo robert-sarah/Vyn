@@ -1,0 +1,4 @@
+// std.array — utilitaires tableaux
+pub fn len(arr: i32) -> i32 { return 0; }
+pub fn sum_f32(size: i32) -> f32 { return 0.0; }
+pub fn fill(val: f32, size: i32) -> f32 { return val; }

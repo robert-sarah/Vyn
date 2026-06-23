@@ -1,0 +1,16 @@
+// Package web v1.0 — helpers web (HTML + serveur)
+pub fn version() -> str {
+    return "1.0.0";
+}
+
+pub fn page(title: str, body: str) -> str {
+    return html.page(title, body);
+}
+
+pub fn api_json(data: str) -> str {
+    return data;
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

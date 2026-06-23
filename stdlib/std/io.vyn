@@ -1,0 +1,2 @@
+// std.io — entrée/sortie
+// Les appels io.print / io.println sont gérés nativement par le runtime.

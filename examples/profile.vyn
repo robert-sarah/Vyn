@@ -1,0 +1,15 @@
+// L'annotation @[profile] genere un rapport en temps reel dans VynStudio
+@[profile]
+fn process_data(input: [f32; 500]) -> f32 {
+    let mut sum: f32 = 0.0;
+    loop val in input {
+        sum += val * 2.0;
+    }
+    return sum;
+}
+
+fn main() -> i32 {
+    let data = [1.0; 500];
+    io.print(process_data(data));
+    return 0;
+}

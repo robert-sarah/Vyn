@@ -1,0 +1,15 @@
+// std.html — generation HTML
+pub fn escape(text: str) -> str { return ""; }
+pub fn tag(name: str, content: str) -> str { return ""; }
+pub fn doc(content: str) -> str { return ""; }
+pub fn head(content: str) -> str { return ""; }
+pub fn body(content: str) -> str { return ""; }
+pub fn title(text: str) -> str { return ""; }
+pub fn h1(text: str) -> str { return ""; }
+pub fn h2(text: str) -> str { return ""; }
+pub fn p(text: str) -> str { return ""; }
+pub fn div(content: str, class_name: str) -> str { return ""; }
+pub fn a(text: str, href: str) -> str { return ""; }
+pub fn link(href: str) -> str { return ""; }
+pub fn style(css: str) -> str { return ""; }
+pub fn page(title: str, body: str, css: str) -> str { return ""; }
