@@ -70,6 +70,10 @@ class SemanticAnalyzer:
         self.structs: Dict[str, StructInfo] = {}
         self.functions: Dict[str, FunctionDecl] = {}
         self.externs: Dict[str, ExternDecl] = {}
+        self.enums: Dict[str, EnumDecl] = {}
+        self.traits: Dict[str, TraitDecl] = {}
+        self.type_aliases: Dict[str, TypeNode] = {}
+        self.consts: Dict[str, Symbol] = {}
         self.scopes: list[Dict[str, Symbol]] = [self._builtin_scope()]
         self.errors: list[str] = []
         self.profiled_functions: list[str] = []
@@ -94,6 +98,21 @@ class SemanticAnalyzer:
             self.externs[ext.name] = ext
         for s in program.structs:
             self.structs[s.name] = StructInfo(s.name, {f.name: f for f in s.fields})
+        for e in program.enums:
+            self.enums[e.name] = e
+        for ta in program.type_aliases:
+            self.type_aliases[ta.name] = ta.target
+        for c in program.consts:
+            self.consts[c.name] = Symbol(c.name, c.type, False)
+        for t in program.traits:
+            self.traits[t.name] = t
+        for mod in getattr(program, "mods", []):
+            for fn in mod.functions:
+                self.functions[f"{mod.name}.{fn.name}"] = fn
+            for s in mod.structs:
+                self.structs[s.name] = StructInfo(s.name, {f.name: f for f in s.fields})
+            for e in mod.enums:
+                self.enums[e.name] = e
         for fn in program.functions:
             self.functions[fn.name] = fn
             if fn.is_hot:
@@ -111,8 +130,19 @@ class SemanticAnalyzer:
                 self._check_method(impl.struct_name, m)
         for stmt in getattr(program, "init_stmts", []):
             self._check_stmt(stmt, TypeNode("void"))
+        for c in program.consts:
+            val_type = self._infer(c.value)
+            if c.type.name not in self.PRIMITIVES and c.type.name not in self.structs:
+                resolved = self._resolve_type(c.type)
+                if resolved.name not in self.PRIMITIVES:
+                    self.errors.append(f"unknown type in const {c.name}: {c.type.name}")
         if self.errors:
             raise SemanticError("\n".join(self.errors))
+
+    def _resolve_type(self, typ: TypeNode) -> TypeNode:
+        while typ.name in self.type_aliases and not typ.args:
+            typ = self.type_aliases[typ.name]
+        return typ
 
     def _load_module_symbols(self, path: str) -> None:
         for base, suffix in ((VENDOR, "lib.vyn"), (STDLIB, ".vyn")):
@@ -174,6 +204,8 @@ class SemanticAnalyzer:
         for scope in reversed(self.scopes):
             if name in scope:
                 return scope[name]
+        if name in self.consts:
+            return self.consts[name]
         return None
 
     def _check_function(self, fn: FunctionDecl) -> None:
@@ -202,11 +234,22 @@ class SemanticAnalyzer:
             self._define(Symbol(stmt.name, typ, stmt.is_mut))
         elif isinstance(stmt, AssignStmt):
             if isinstance(stmt.target, Identifier):
+                if stmt.target.name in self.consts:
+                    self.errors.append(f"cannot assign to const: {stmt.target.name}")
                 sym = self._lookup(stmt.target.name)
                 if sym and not sym.is_mut:
                     self.errors.append(f"cannot assign to immutable: {stmt.target.name}")
                 else:
                     self._infer(stmt.value)
+            elif isinstance(stmt.target, BinaryOp) and stmt.target.op == "[]":
+                self._infer(stmt.target.left)
+                self._infer(stmt.target.right)
+                self._infer(stmt.value)
+            elif isinstance(stmt.target, MemberAccess):
+                self._infer(stmt.target.object)
+                self._infer(stmt.value)
+            else:
+                self._infer(stmt.value)
         elif isinstance(stmt, ReturnStmt):
             if stmt.value:
                 self._infer(stmt.value)
@@ -263,6 +306,8 @@ class SemanticAnalyzer:
         if isinstance(expr, StringLiteral):
             return TypeNode("str")
         if isinstance(expr, Identifier):
+            if expr.name in self.consts:
+                return self.consts[expr.name].type
             sym = self._lookup(expr.name)
             if not sym:
                 self.errors.append(f"unknown identifier: {expr.name}")
@@ -281,6 +326,10 @@ class SemanticAnalyzer:
                 return self._infer_member_call(expr.callee, expr.args)
             if isinstance(expr.callee, Identifier):
                 name = expr.callee.name
+                for enum_decl in self.enums.values():
+                    for variant in enum_decl.variants:
+                        if variant.name == name and variant.payload:
+                            return variant.payload
                 if name in self.functions:
                     return self.functions[name].return_type
                 if name in self.externs:
@@ -291,6 +340,11 @@ class SemanticAnalyzer:
                 self.errors.append(f"unknown function: {name}")
             return TypeNode("void")
         if isinstance(expr, MemberAccess):
+            if isinstance(expr.object, Identifier) and expr.object.name in self.enums:
+                enum = self.enums[expr.object.name]
+                if any(v.name == expr.member for v in enum.variants):
+                    v = next(x for x in enum.variants if x.name == expr.member)
+                    return v.payload or TypeNode("i32")
             return TypeNode("fn")
         if isinstance(expr, StructInit):
             if expr.struct_name not in self.structs:
@@ -306,10 +360,12 @@ class SemanticAnalyzer:
         return TypeNode("void")
 
     def _infer_member_call(self, access: MemberAccess, args: list[Expr]) -> TypeNode:
-        qual = access.object
         method = access.member
-        if isinstance(qual, Identifier):
-            full = f"{qual.name}.{method}"
+        if isinstance(access.object, Identifier):
+            mod = access.object.name
+            full = f"{mod}.{method}"
+            if full in self.functions:
+                return self.functions[full].return_type
             sym = self._lookup(full)
             if sym:
                 return TypeNode("void")

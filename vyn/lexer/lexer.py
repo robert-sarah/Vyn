@@ -56,6 +56,8 @@ class TokenKind(Enum):
     THROW = auto()
     IN = auto()
 
+    DEFAULT = auto()
+
     IDENT = auto()
     AT = auto()
     LBRACKET = auto()
@@ -106,6 +108,7 @@ KEYWORDS = {
     "task": TokenKind.TASK, "import": TokenKind.IMPORT, "mod": TokenKind.MOD,
     "use": TokenKind.USE, "try": TokenKind.TRY, "catch": TokenKind.CATCH,
     "throw": TokenKind.THROW, "in": TokenKind.IN,
+    "default": TokenKind.DEFAULT,
     "true": TokenKind.TRUE, "false": TokenKind.FALSE,
     "and": TokenKind.AND, "or": TokenKind.OR, "not": TokenKind.NOT,
 }
@@ -146,6 +149,7 @@ class Lexer:
 
     _TOKEN = re.compile(
         r'(?P<FLOAT>\d+\.\d+(?:[eE][+-]?\d+)?)'
+        r"|(?P<HEXINT>0[xX][0-9a-fA-F]+)"
         r"|(?P<INT>\d+)"
         r'|(?P<STRING>"(?:[^"\\]|\\.)*")'
         r"|(?P<IDENT>[a-zA-Z_][a-zA-Z0-9_]*)"
@@ -213,14 +217,32 @@ class Lexer:
                 yield Token(kw or TokenKind.IDENT, text, start_line, start_col)
             elif kind_name == "INT":
                 yield Token(TokenKind.INT, text, start_line, start_col)
+            elif kind_name == "HEXINT":
+                yield Token(TokenKind.INT, str(int(text, 16)), start_line, start_col)
             elif kind_name == "FLOAT":
                 yield Token(TokenKind.FLOAT, text, start_line, start_col)
             elif kind_name == "STRING":
-                yield Token(TokenKind.STRING, text[1:-1], start_line, start_col)
+                yield Token(TokenKind.STRING, self._decode_string(text[1:-1]), start_line, start_col)
             else:
                 yield Token(TokenKind[kind_name], text, start_line, start_col)
 
         yield Token(TokenKind.EOF, "", self.line, self.col)
+
+    @staticmethod
+    def _decode_string(raw: str) -> str:
+        """Interprète les séquences d'échappement dans les chaînes."""
+        out: list[str] = []
+        i = 0
+        escapes = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "'": "'"}
+        while i < len(raw):
+            if raw[i] == "\\" and i + 1 < len(raw):
+                nxt = raw[i + 1]
+                out.append(escapes.get(nxt, nxt))
+                i += 2
+            else:
+                out.append(raw[i])
+                i += 1
+        return "".join(out)
 
     def _advance_text(self, text: str) -> None:
         for ch in text:

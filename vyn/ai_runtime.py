@@ -57,6 +57,11 @@ def _relu_deriv(x: float) -> float:
     return 1.0 if x > 0 else 0.0
 
 
+def _sigmoid(x: float) -> float:
+    x = max(-20.0, min(20.0, x))
+    return 1.0 / (1.0 + math.exp(-x))
+
+
 def _softmax(vals: List[float]) -> List[float]:
     m = max(vals)
     ex = [math.exp(v - m) for v in vals]
@@ -99,11 +104,11 @@ def model_train(model_id: str, epochs: int, lr: float) -> float:
             for k in range(m.output_size):
                 s = m.bias_o[k] + sum(m.weights_ho[k][j] * hidden[j] for j in range(m.hidden_size))
                 out_raw.append(s)
-            out = _softmax(out_raw) if m.output_size > 1 else out_raw
+            out = _softmax(out_raw) if m.output_size > 1 else [_sigmoid(out_raw[0])]
             target = ytarget + [0.0] * m.output_size
             target = target[: m.output_size]
-            # MSE loss
-            loss = sum((out[i] - target[i]) ** 2 for i in range(m.output_size))
+            # MSE loss (borné pour éviter overflow)
+            loss = sum(min(1e6, (out[i] - target[i]) ** 2) for i in range(m.output_size))
             epoch_loss += loss
             # backward (simplified)
             for k in range(m.output_size):
@@ -139,7 +144,7 @@ def model_predict(model_id: str, x: float) -> float:
     for k in range(m.output_size):
         s = m.bias_o[k] + sum(m.weights_ho[k][j] * hidden[j] for j in range(m.hidden_size))
         out_raw.append(s)
-    out = _softmax(out_raw) if m.output_size > 1 else out_raw
+    out = _softmax(out_raw) if m.output_size > 1 else [_sigmoid(out_raw[0])]
     return float(out[0])
 
 

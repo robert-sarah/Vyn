@@ -215,6 +215,29 @@ class TestLanguageServer(unittest.TestCase):
         self.assertEqual(text, "run()")
         self.assertEqual(pos, 4)
 
+    def test_std_member_completion(self):
+        from vynstudio.language_server import SERVER
+        names = [s.name for s in SERVER.complete_member("std")]
+        self.assertIn("io", names)
+        self.assertIn("numpy", names)
+
+    def test_unified_prefix_filter(self):
+        from vynstudio.language_server import SERVER
+        names = [s.name for s in SERVER.complete_unified("io")]
+        self.assertIn("io", names)
+        io_names = [s.insert or s.name for s in SERVER.complete_unified("io")]
+        self.assertTrue(any("println" in n for n in io_names))
+
+    def test_hover_lookup(self):
+        from vynstudio.language_server import SERVER
+        sym = SERVER.lookup_hover("println")
+        self.assertIsNotNone(sym)
+        self.assertEqual(sym.name, "println")
+
+    def test_string_escape(self):
+        tokens = Lexer(r'"line\n"').tokenize()
+        self.assertEqual(tokens[0].value, "line\n")
+
 
 class TestInterpreter(unittest.TestCase):
     def test_break_continue(self):
@@ -271,6 +294,210 @@ class TestInterpreter(unittest.TestCase):
         with open(path, encoding="utf-8") as f:
             code = run_source(f.read())
         self.assertEqual(code, 0)
+
+
+class TestLanguageMajor(unittest.TestCase):
+    def test_const_and_type_alias(self):
+        src = """
+        const MAX: i32 = 0xFF;
+        type UserId = i32;
+        fn main() -> i32 {
+            let id: UserId = MAX;
+            return id;
+        }
+        """
+        self.assertEqual(run_source(src), 255)
+
+    def test_trait_parse(self):
+        src = """
+        trait Drawable {
+            fn draw(self) -> void;
+        }
+        fn main() -> i32 { return 0; }
+        """
+        prog = Parser(src).parse()
+        self.assertEqual(prog.traits[0].name, "Drawable")
+        self.assertEqual(prog.traits[0].methods[0].name, "draw")
+
+    def test_enum_payload(self):
+        src = """
+        enum Result {
+            Ok(i32),
+            Err(str),
+        }
+        fn main() -> i32 {
+            let r = Ok(42);
+            match r {
+                case Result.Ok: return 1;
+                default: return 0;
+            }
+            return 0;
+        }
+        """
+        self.assertEqual(run_source(src), 1)
+
+    def test_array_index_assign(self):
+        src = """
+        fn main() -> i32 {
+            let mut arr: [i32; 3] = [0, 0, 0];
+            arr[1] = 99;
+            return arr[1];
+        }
+        """
+        self.assertEqual(run_source(src), 99)
+
+    def test_hex_literal(self):
+        tokens = Lexer("0xFF 0x10").tokenize()
+        vals = [t.value for t in tokens if t.kind == TokenKind.INT]
+        self.assertEqual(vals, ["255", "16"])
+
+    def test_hash_fnv1a(self):
+        from vyn.stdlib_runtime import dispatch
+        h = dispatch("hash", "fnv1a", ["test"])
+        self.assertIsInstance(h, int)
+        self.assertNotEqual(h, 0)
+
+    def test_thread_spawn_join(self):
+        src = """
+        import std.thread;
+        fn worker() -> void { return; }
+        fn main() -> i32 {
+            let h = thread.spawn("worker");
+            thread.join(h);
+            return 0;
+        }
+        """
+        self.assertEqual(run_source(src), 0)
+
+    def test_hot_fn_logs(self):
+        import io
+        import sys
+        src = """
+        hot fn calc(x: f32) -> f32 { return x; }
+        fn main() -> i32 { calc(1.0); return 0; }
+        """
+        buf = io.StringIO()
+        old = sys.stderr
+        sys.stderr = buf
+        try:
+            run_source(src)
+        finally:
+            sys.stderr = old
+        self.assertIn("[VynHot]", buf.getvalue())
+
+
+class TestVynComplete(unittest.TestCase):
+    def test_mod_namespace(self):
+        src = """
+        mod utils {
+            fn answer() -> i32 { return 42; }
+        }
+        fn main() -> i32 { return utils.answer(); }
+        """
+        self.assertEqual(run_source(src), 42)
+
+    def test_ownership_move(self):
+        src = """
+        fn main() -> i32 {
+            let x: own i32 = 10;
+            let y = x;
+            return y;
+        }
+        """
+        self.assertEqual(run_source(src), 10)
+        src2 = """
+        fn main() -> i32 {
+            let x: own i32 = 10;
+            let y = x;
+            return x;
+        }
+        """
+        with self.assertRaises(Exception):
+            run_source(src2)
+
+    def test_hot_reload_swap(self):
+        from vyn.interpreter import Interpreter
+        from vyn.parser import Parser
+        from vyn.semantic import SemanticAnalyzer
+        src1 = "hot fn f() -> i32 { return 1; } fn main() -> i32 { return f(); }"
+        prog1 = Parser(src1).parse()
+        SemanticAnalyzer().analyze(prog1)
+        interp = Interpreter(prog1)
+        self.assertEqual(interp._call_fn(interp.functions["f"], []), 1)
+        src2 = "hot fn f() -> i32 { return 99; } fn main() -> i32 { return f(); }"
+        prog2 = Parser(src2).parse()
+        SemanticAnalyzer().analyze(prog2)
+        interp.reload_hot_functions(prog2)
+        self.assertEqual(interp._call_fn(interp.functions["f"], []), 99)
+
+    def test_llvm_match_ir(self):
+        from vyn.codegen.llvm_gen import LLVMGenerator
+        from vyn.parser import Parser
+        from vyn.semantic import SemanticAnalyzer
+        src = """
+        enum Status { Ready, Done, }
+        fn main() -> i32 {
+            let x: i32 = 0;
+            match x {
+                case Status.Ready: return 1;
+                default: return 0;
+            }
+            return 0;
+        }
+        """
+        program = Parser(src).parse()
+        sem = SemanticAnalyzer()
+        sem.analyze(program)
+        ir_code = LLVMGenerator(program, sem).generate()
+        self.assertIn("match_case", ir_code)
+
+    def test_mod_const(self):
+        src = """
+        mod cfg {
+            const LIMIT: i32 = 5;
+        }
+        fn main() -> i32 { return cfg.LIMIT; }
+        """
+        self.assertEqual(run_source(src), 5)
+
+
+    def test_context_import(self):
+        from vynstudio.language_server import SERVER
+        from vynstudio.completion_context import detect_context
+        ctx = detect_context("import ")
+        syms = SERVER.complete_contextual(ctx)
+        names = [s.name for s in syms]
+        self.assertIn("std.io", names)
+        self.assertIn("std.fs", names)
+        self.assertIn("serde", names)
+
+    def test_context_let(self):
+        from vynstudio.language_server import SERVER
+        from vynstudio.completion_context import detect_context
+        ctx = detect_context("let ")
+        syms = SERVER.complete_contextual(ctx)
+        inserts = [s.insert for s in syms]
+        self.assertTrue(any("mut" in (i or "") for i in inserts))
+        self.assertTrue(any("i32" in (i or "") for i in inserts))
+
+    def test_context_type(self):
+        from vynstudio.language_server import SERVER
+        from vynstudio.completion_context import detect_context
+        ctx = detect_context("let x: ")
+        syms = SERVER.complete_contextual(ctx)
+        names = [s.name for s in syms]
+        self.assertIn("i32", names)
+        self.assertIn("f32", names)
+        self.assertIn("str", names)
+
+    def test_context_use_symbol(self):
+        from vynstudio.language_server import SERVER
+        from vynstudio.completion_context import CompletionContext
+        ctx = CompletionContext("use_symbol", "", 0, "io", "")
+        syms = SERVER.complete_contextual(ctx)
+        names = [s.name for s in syms]
+        self.assertIn("println", names)
+        self.assertIn("print", names)
 
 
 if __name__ == "__main__":

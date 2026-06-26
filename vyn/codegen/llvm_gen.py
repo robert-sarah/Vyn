@@ -41,6 +41,13 @@ class LLVMGenerator:
         self.current_fn: Optional[FunctionDecl] = None
         self.string_literals: List[str] = []
         self.array_sizes: Dict[str, int] = {}
+        self.loop_stack: List[tuple] = []
+        self.enum_map: Dict[str, Dict[str, int]] = {}
+        for e in getattr(program, "enums", []):
+            self.enum_map[e.name] = {v.name: i for i, v in enumerate(e.variants)}
+        for mod in getattr(program, "mods", []):
+            for e in mod.enums:
+                self.enum_map[e.name] = {v.name: i for i, v in enumerate(e.variants)}
         self._declare_runtime()
 
     def _declare_runtime(self) -> None:
@@ -234,6 +241,15 @@ class LLVMGenerator:
                 ptr = self.local_vars.get(stmt.target.name)
                 if ptr:
                     self.builder.store(val, ptr)
+            elif isinstance(stmt.target, BinaryOp) and stmt.target.op == "[]":
+                arr_ptr = self.local_vars.get(self._expr_name(stmt.target.left))
+                if arr_ptr:
+                    idx = self._gen_expr(stmt.target.right)
+                    elem_ptr = self.builder.gep(
+                        arr_ptr,
+                        [ir.Constant(ir.IntType(32), 0), idx],
+                    )
+                    self.builder.store(val, elem_ptr)
             elif isinstance(stmt.target, MemberAccess) and isinstance(stmt.target.object, Identifier):
                 if stmt.target.object.name == "self" and struct_name:
                     self_ptr = self.local_vars.get("self_ptr")
@@ -254,12 +270,18 @@ class LLVMGenerator:
             self._gen_if(stmt)
         elif isinstance(stmt, LoopStmt):
             self._gen_loop(stmt, struct_name)
+        elif isinstance(stmt, MatchStmt):
+            self._gen_match(stmt, struct_name)
+        elif isinstance(stmt, TryStmt):
+            self._gen_try(stmt, struct_name)
         elif isinstance(stmt, ExprStmt):
             self._gen_expr(stmt.expr)
         elif isinstance(stmt, BreakStmt):
-            pass  # simplifié
+            if self.loop_stack:
+                self.builder.branch(self.loop_stack[-1][0])
         elif isinstance(stmt, ContinueStmt):
-            pass
+            if self.loop_stack:
+                self.builder.branch(self.loop_stack[-1][1])
 
     def _gen_if(self, stmt: IfStmt) -> None:
         assert self.builder is not None
@@ -287,12 +309,67 @@ class LLVMGenerator:
                 self.builder.branch(merge_bb)
         self.builder.position_at_end(merge_bb)
 
+    def _expr_name(self, expr: Expr) -> str:
+        if isinstance(expr, Identifier):
+            return expr.name
+        return ""
+
+    def _gen_match(self, stmt: MatchStmt, struct_name: Optional[str] = None) -> None:
+        assert self.builder is not None
+        func = self.builder.basic_block.function
+        val = self._gen_expr(stmt.expr)
+        merge_bb = func.append_basic_block("match_merge")
+        matched = False
+        for case in stmt.cases:
+            if case.pattern is None:
+                if not matched:
+                    next_bb = func.append_basic_block("match_default")
+                    self.builder.branch(next_bb)
+                    self.builder.position_at_end(next_bb)
+                    for s in case.body:
+                        self._gen_stmt(s, struct_name)
+                    if not self.builder.block.is_terminated:
+                        self.builder.branch(merge_bb)
+                break
+            test_bb = func.append_basic_block("match_case")
+            cont_bb = func.append_basic_block("match_cont")
+            if isinstance(case.pattern, MemberAccess) and isinstance(case.pattern.object, Identifier):
+                ename = case.pattern.object.name
+                vname = case.pattern.member
+                idx = self.enum_map.get(ename, {}).get(vname, -1)
+                if idx >= 0:
+                    cond = self.builder.icmp_signed("==", val, ir.Constant(ir.IntType(32), idx))
+                else:
+                    cond = ir.Constant(ir.IntType(1), 0)
+            else:
+                pat = self._gen_expr(case.pattern)
+                cond = self.builder.icmp_signed("==", val, pat)
+            self.builder.cbranch(cond, test_bb, cont_bb)
+            self.builder.position_at_end(test_bb)
+            for s in case.body:
+                self._gen_stmt(s, struct_name)
+            if not self.builder.block.is_terminated:
+                self.builder.branch(merge_bb)
+            self.builder.position_at_end(cont_bb)
+            matched = True
+        if not self.builder.block.is_terminated:
+            self.builder.branch(merge_bb)
+        self.builder.position_at_end(merge_bb)
+
+    def _gen_try(self, stmt: TryStmt, struct_name: Optional[str] = None) -> None:
+        assert self.builder is not None
+        for s in stmt.body:
+            self._gen_stmt(s, struct_name)
+        catch_bb = self.builder.basic_block.function.append_basic_block("catch_unused")
+        self.builder.position_at_end(catch_bb)
+
     def _gen_loop(self, stmt: LoopStmt, struct_name: Optional[str] = None) -> None:
         assert self.builder is not None
         func = self.builder.basic_block.function
         cond_bb = func.append_basic_block("loop_cond")
         body_bb = func.append_basic_block("loop_body")
         exit_bb = func.append_basic_block("loop_exit")
+        self.loop_stack.append((exit_bb, cond_bb))
         self.builder.branch(cond_bb)
         self.builder.position_at_end(cond_bb)
 
@@ -338,6 +415,7 @@ class LLVMGenerator:
             self.builder.branch(cond_bb)
 
         self.builder.position_at_end(exit_bb)
+        self.loop_stack.pop()
 
     def _gen_expr(self, expr: Optional[Expr]) -> Any:
         assert self.builder is not None
@@ -396,6 +474,17 @@ class LLVMGenerator:
                 if expr.op == "==":
                     return self.builder.icmp_signed("==", l, r)
                 return self.builder.icmp_signed("!=", l, r)
+            if expr.op == "[]":
+                if isinstance(expr.left, Identifier):
+                    arr_ptr = self.local_vars.get(expr.left.name)
+                    if arr_ptr:
+                        idx = r
+                        elem_ptr = self.builder.gep(
+                            arr_ptr,
+                            [ir.Constant(ir.IntType(32), 0), idx],
+                        )
+                        return self.builder.load(elem_ptr)
+                return ir.Constant(ir.IntType(32), 0)
         if isinstance(expr, UnaryOp):
             o = self._gen_expr(expr.operand)
             if expr.op == "-":
@@ -474,6 +563,9 @@ class LLVMGenerator:
 
     def _gen_member(self, expr: MemberAccess) -> Any:
         assert self.builder is not None
+        if isinstance(expr.object, Identifier) and expr.object.name in self.enum_map:
+            idx = self.enum_map[expr.object.name].get(expr.member, 0)
+            return ir.Constant(ir.IntType(32), idx)
         if isinstance(expr.object, Identifier) and expr.object.name == "self":
             self_ptr = self.local_vars.get("self_ptr")
             if self_ptr:

@@ -17,6 +17,7 @@ _IDENT_KINDS: Set[TokenKind] = {
     TokenKind.CASE, TokenKind.BREAK, TokenKind.CONTINUE, TokenKind.TRY, TokenKind.CATCH,
     TokenKind.THROW, TokenKind.AND, TokenKind.OR, TokenKind.NOT, TokenKind.HOT,
     TokenKind.FN, TokenKind.LET, TokenKind.STRUCT, TokenKind.IMPL, TokenKind.IMPORT,
+    TokenKind.TRAIT, TokenKind.DEFAULT,
 }
 
 # Types primitifs + identifiants custom
@@ -39,7 +40,8 @@ class Parser:
         self.pos = 0
 
     def parse(self) -> Program:
-        imports, uses, externs, structs, functions, impls, enums, init_stmts = [], [], [], [], [], [], [], []
+        imports, uses, externs, structs, functions, impls = [], [], [], [], [], []
+        enums, consts, type_aliases, traits, mods, init_stmts = [], [], [], [], [], []
         while not self._check(TokenKind.EOF):
             if self._check(TokenKind.AT):
                 functions.append(self._parse_function(attributes=self._parse_attributes()))
@@ -49,8 +51,16 @@ class Parser:
                 uses.append(self._parse_use())
             elif self._match(TokenKind.EXTERN):
                 externs.append(self._parse_extern())
+            elif self._match(TokenKind.MOD):
+                mods.append(self._parse_mod())
             elif self._match(TokenKind.ENUM):
                 enums.append(self._parse_enum())
+            elif self._match(TokenKind.CONST):
+                consts.append(self._parse_const())
+            elif self._match(TokenKind.TYPE):
+                type_aliases.append(self._parse_type_alias())
+            elif self._match(TokenKind.TRAIT):
+                traits.append(self._parse_trait())
             elif self._match(TokenKind.STRUCT):
                 structs.append(self._parse_struct())
             elif self._match(TokenKind.IMPL):
@@ -68,24 +78,117 @@ class Parser:
                 elif self._check(TokenKind.ENUM):
                     self._advance()
                     enums.append(self._parse_enum(visibility=Visibility.PUBLIC))
+                elif self._check(TokenKind.CONST):
+                    self._advance()
+                    consts.append(self._parse_const(visibility=Visibility.PUBLIC))
+                elif self._check(TokenKind.TYPE):
+                    self._advance()
+                    type_aliases.append(self._parse_type_alias(visibility=Visibility.PUBLIC))
+                elif self._check(TokenKind.TRAIT):
+                    self._advance()
+                    traits.append(self._parse_trait(visibility=Visibility.PUBLIC))
+                elif self._check(TokenKind.MOD):
+                    self._advance()
+                    mods.append(self._parse_mod(visibility=Visibility.PUBLIC))
                 else:
-                    self._error("pub must precede fn, struct, or enum")
+                    self._error("pub must precede fn, struct, enum, const, type, trait, or mod")
             elif self._check(TokenKind.FN):
                 functions.append(self._parse_function())
             else:
                 init_stmts.append(self._parse_stmt())
-        return Program(imports, uses, externs, structs, functions, impls, enums, init_stmts)
+        return Program(
+            imports, uses, externs, structs, functions, impls,
+            enums, consts, type_aliases, traits, mods, init_stmts,
+        )
+
+    def _parse_mod(self, visibility: Visibility = Visibility.PRIVATE) -> ModDecl:
+        name = self._parse_ident("module")
+        self._expect(TokenKind.LBRACE)
+        functions: List[FunctionDecl] = []
+        structs: List[StructDecl] = []
+        enums: List[EnumDecl] = []
+        consts: List[ConstDecl] = []
+        while not self._check(TokenKind.RBRACE) and not self._check(TokenKind.EOF):
+            if self._check(TokenKind.AT):
+                functions.append(self._parse_function(attributes=self._parse_attributes()))
+            elif self._match(TokenKind.HOT):
+                self._expect(TokenKind.FN)
+                functions.append(self._parse_function(is_hot=True, skip_fn=True))
+            elif self._match(TokenKind.PUB):
+                if self._check(TokenKind.FN):
+                    self._advance()
+                    functions.append(self._parse_function(visibility=Visibility.PUBLIC, skip_fn=True))
+                elif self._check(TokenKind.STRUCT):
+                    self._advance()
+                    structs.append(self._parse_struct(visibility=Visibility.PUBLIC))
+                elif self._check(TokenKind.ENUM):
+                    self._advance()
+                    enums.append(self._parse_enum(visibility=Visibility.PUBLIC))
+                elif self._check(TokenKind.CONST):
+                    self._advance()
+                    consts.append(self._parse_const(visibility=Visibility.PUBLIC))
+                else:
+                    self._error("pub in mod must precede fn, struct, enum, or const")
+            elif self._match(TokenKind.FN):
+                functions.append(self._parse_function(skip_fn=True))
+            elif self._match(TokenKind.STRUCT):
+                structs.append(self._parse_struct())
+            elif self._match(TokenKind.ENUM):
+                enums.append(self._parse_enum())
+            elif self._match(TokenKind.CONST):
+                consts.append(self._parse_const())
+            else:
+                self._error(f"unexpected token in mod '{name}': {self._peek().value}")
+        self._expect(TokenKind.RBRACE)
+        return ModDecl(name, functions, structs, enums, consts, visibility)
 
     def _parse_enum(self, visibility: Visibility = Visibility.PRIVATE) -> EnumDecl:
         name = self._parse_ident("enum")
         self._expect(TokenKind.LBRACE)
-        variants = []
+        variants: List[EnumVariant] = []
         while not self._check(TokenKind.RBRACE):
-            variants.append(self._parse_ident("variant"))
+            vname = self._parse_ident("variant")
+            payload = None
+            if self._match(TokenKind.LPAREN):
+                payload = self._parse_type()
+                self._expect(TokenKind.RPAREN)
+            variants.append(EnumVariant(vname, payload))
             self._match(TokenKind.COMMA)
         self._expect(TokenKind.RBRACE)
         self._match(TokenKind.SEMI)
         return EnumDecl(name, variants, visibility)
+
+    def _parse_const(self, visibility: Visibility = Visibility.PRIVATE) -> ConstDecl:
+        name = self._parse_ident("const")
+        self._expect(TokenKind.COLON)
+        typ = self._parse_type()
+        self._expect(TokenKind.EQ)
+        val = self._parse_expr()
+        self._expect_semi()
+        return ConstDecl(name, typ, val, visibility)
+
+    def _parse_type_alias(self, visibility: Visibility = Visibility.PRIVATE) -> TypeAliasDecl:
+        name = self._parse_ident("type")
+        self._expect(TokenKind.EQ)
+        target = self._parse_type()
+        self._expect_semi()
+        return TypeAliasDecl(name, target, visibility)
+
+    def _parse_trait(self, visibility: Visibility = Visibility.PRIVATE) -> TraitDecl:
+        name = self._parse_ident("trait")
+        self._expect(TokenKind.LBRACE)
+        methods: List[TraitMethod] = []
+        while not self._check(TokenKind.RBRACE):
+            self._expect(TokenKind.FN)
+            mname = self._parse_ident("méthode")
+            self._expect(TokenKind.LPAREN)
+            params = self._parse_params(allow_self=True)
+            self._expect(TokenKind.RPAREN)
+            ret = self._parse_return_type()
+            self._expect_semi()
+            methods.append(TraitMethod(mname, params, ret))
+        self._expect(TokenKind.RBRACE)
+        return TraitDecl(name, methods, visibility)
 
     def _parse_paren_expr(self) -> Expr:
         """Expression with optional parentheses: (x) or x"""
@@ -331,7 +434,10 @@ class Parser:
             if self._match(TokenKind.ELSE):
                 self._match(TokenKind.COLON)
                 cases.append(MatchCase(None, self._parse_case_body()))
-            elif self._peek().value in ("default", "_") and self._peek().kind in _IDENT_KINDS:
+            elif self._match(TokenKind.DEFAULT):
+                self._match(TokenKind.COLON)
+                cases.append(MatchCase(None, self._parse_case_body()))
+            elif self._peek().value == "_" and self._peek().kind in _IDENT_KINDS:
                 self._advance()
                 self._match(TokenKind.COLON)
                 cases.append(MatchCase(None, self._parse_case_body()))

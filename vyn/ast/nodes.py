@@ -90,6 +90,51 @@ class UseDecl:
 
 
 @dataclass
+class EnumVariant:
+    name: str
+    payload: Optional[TypeNode] = None
+
+
+@dataclass
+class ConstDecl:
+    name: str
+    type: TypeNode
+    value: Expr
+    visibility: Visibility = Visibility.PRIVATE
+
+
+@dataclass
+class TypeAliasDecl:
+    name: str
+    target: TypeNode
+    visibility: Visibility = Visibility.PRIVATE
+
+
+@dataclass
+class TraitMethod:
+    name: str
+    params: List[Param]
+    return_type: TypeNode
+
+
+@dataclass
+class TraitDecl:
+    name: str
+    methods: List[TraitMethod]
+    visibility: Visibility = Visibility.PRIVATE
+
+
+@dataclass
+class ModDecl:
+    name: str
+    functions: List[FunctionDecl] = field(default_factory=list)
+    structs: List[StructDecl] = field(default_factory=list)
+    enums: List["EnumDecl"] = field(default_factory=list)
+    consts: List[ConstDecl] = field(default_factory=list)
+    visibility: Visibility = Visibility.PRIVATE
+
+
+@dataclass
 class Program:
     imports: List[ImportDecl]
     uses: List[UseDecl]
@@ -98,6 +143,10 @@ class Program:
     functions: List[FunctionDecl]
     impls: List[ImplBlock]
     enums: List["EnumDecl"] = field(default_factory=list)
+    consts: List[ConstDecl] = field(default_factory=list)
+    type_aliases: List[TypeAliasDecl] = field(default_factory=list)
+    traits: List[TraitDecl] = field(default_factory=list)
+    mods: List[ModDecl] = field(default_factory=list)
     init_stmts: List["Stmt"] = field(default_factory=list)
 
 
@@ -219,7 +268,7 @@ class BreakStmt:
 @dataclass
 class EnumDecl:
     name: str
-    variants: List[str]
+    variants: List[EnumVariant]
     visibility: Visibility = Visibility.PRIVATE
 
 

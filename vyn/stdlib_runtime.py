@@ -20,6 +20,22 @@ if TYPE_CHECKING:
 
 _db_conns: Dict[str, sqlite3.Connection] = {}
 _db_counter = 0
+_threads: Dict[int, threading.Thread] = {}
+_thread_counter = 0
+
+
+def _thread_next_id() -> int:
+    global _thread_counter
+    _thread_counter += 1
+    return _thread_counter
+
+
+def _fnv1a_hash(data: str) -> int:
+    h = 2166136261
+    for byte in str(data).encode("utf-8"):
+        h ^= byte
+        h = (h * 16777619) & 0xFFFFFFFF
+    return h if h < 0x80000000 else h - 0x100000000
 
 
 def _db_new_id() -> str:
@@ -394,10 +410,7 @@ def dispatch(mod: str, method: str, args: list, interpreter: Optional["Interpret
 
     if mod == "hash":
         if method == "fnv1a":
-            h = 2166136261
-            for b in str(args[0]).encode("utf-8"):
-                h = (h ^ b) * 16777619 & 0xFFFFFFFF
-            return h
+            return _fnv1a_hash(str(args[0]))
         if method == "md5":
             return hashlib.md5(str(args[0]).encode()).hexdigest()
 
@@ -514,11 +527,29 @@ def dispatch(mod: str, method: str, args: list, interpreter: Optional["Interpret
             return random.randint(lo, hi)
 
     if mod == "sync":
-        if method == "yield_task":
-            time.sleep(0.001)
+        if method in ("yield_task", "sleep"):
+            time.sleep(float(args[0]) / 1000.0 if args else 0.001)
             return 0
 
     if mod == "thread":
+        if method == "spawn":
+            fn_name = str(args[0]) if args else ""
+            handle = _thread_next_id()
+
+            def _run():
+                if interpreter and fn_name in interpreter.functions:
+                    interpreter._call_fn(interpreter.functions[fn_name], [])
+
+            t = threading.Thread(target=_run, daemon=True)
+            _threads[handle] = t
+            t.start()
+            return handle
+        if method == "join":
+            handle = int(args[0]) if args else 0
+            t = _threads.pop(handle, None)
+            if t:
+                t.join(timeout=30.0)
+            return 0
         if method == "sleep_ms":
             time.sleep(int(args[0]) / 1000.0)
             return 0

@@ -11,6 +11,20 @@ from vynstudio.language_server import SymbolInfo
 from vynstudio.theme import LIGHT as T
 
 
+_KIND_TAG = {
+    "import": "📦 import",
+    "use": "🔗 use",
+    "type": "◆ type",
+    "function": "ƒ fn",
+    "keyword": "🔑",
+    "module": "📁 mod",
+    "snippet": "✂ snippet",
+    "variable": "𝑥 var",
+    "struct": "▣ struct",
+    "enum": "▸ enum",
+}
+
+
 class VynCompletionPopup(QFrame):
     """Popup frameless sous le curseur — ne vole jamais le focus à l'éditeur."""
 
@@ -44,10 +58,13 @@ class VynCompletionPopup(QFrame):
     def set_symbols(self, symbols: List[SymbolInfo]) -> None:
         self._list.clear()
         for sym in symbols:
+            tag = _KIND_TAG.get(sym.kind, sym.kind)
             label = sym.name
-            if sym.signature:
+            if sym.detail and sym.detail != sym.signature:
+                label = f"{sym.name}  —  {sym.detail}"
+            elif sym.signature:
                 label = f"{sym.name}  —  {sym.signature}"
-            item = QListWidgetItem(label)
+            item = QListWidgetItem(f"  {tag}  {label}")
             item.setData(Qt.UserRole, sym)
             self._list.addItem(item)
         if self._list.count():
@@ -60,8 +77,12 @@ class VynCompletionPopup(QFrame):
         for i in range(self._list.count()):
             item = self._list.item(i)
             sym: SymbolInfo = item.data(Qt.UserRole)
-            name = sym.name if sym else item.text().split("  —  ")[0]
-            match = not prefix_lower or name.lower().startswith(prefix_lower)
+            if not sym:
+                continue
+            haystack = " ".join(filter(None, [
+                sym.name, sym.insert or "", sym.detail or "", sym.signature or "",
+            ])).lower()
+            match = not prefix_lower or haystack.startswith(prefix_lower) or prefix_lower in haystack
             item.setHidden(not match)
             if match:
                 visible += 1
