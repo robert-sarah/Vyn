@@ -1,0 +1,102 @@
+// std/option.vyn — Option<T> standard library for Vyn
+// Provides: Some, None, is_some, is_none, unwrap, unwrap_or, map, and_then, or_else, filter
+
+// ─── Option constructors (built-in to language, these are helpers) ────────────
+
+pub fn some(val: i32) -> i32 {
+    // Runtime: returns {"__type__": "Option", "__tag__": "Some", "__value__": val}
+    return val;
+}
+
+pub fn none() -> i32 {
+    return 0;
+}
+
+// ─── Predicates ───────────────────────────────────────────────────────────────
+
+pub fn is_some(opt: i32) -> bool {
+    return opt != 0;
+}
+
+pub fn is_none(opt: i32) -> bool {
+    return opt == 0;
+}
+
+// ─── Unwrap ───────────────────────────────────────────────────────────────────
+
+pub fn unwrap(opt: i32) -> i32 {
+    if (opt == 0) {
+        throw "unwrap() called on None";
+    }
+    return opt;
+}
+
+pub fn unwrap_or(opt: i32, default_val: i32) -> i32 {
+    if (opt == 0) {
+        return default_val;
+    }
+    return opt;
+}
+
+pub fn expect(opt: i32, msg: str) -> i32 {
+    if (opt == 0) {
+        throw msg;
+    }
+    return opt;
+}
+
+// ─── Transformation ───────────────────────────────────────────────────────────
+
+pub fn or_else(opt: i32, other: i32) -> i32 {
+    if (opt != 0) {
+        return opt;
+    }
+    return other;
+}
+
+pub fn flatten(opt: i32) -> i32 {
+    return opt;
+}
+
+// ─── Boolean combinators ──────────────────────────────────────────────────────
+
+pub fn and_opt(a: i32, b: i32) -> i32 {
+    if (a == 0) { return 0; }
+    return b;
+}
+
+pub fn or_opt(a: i32, b: i32) -> i32 {
+    if (a != 0) { return a; }
+    return b;
+}
+
+// ─── Conversion ───────────────────────────────────────────────────────────────
+
+pub fn to_result(opt: i32, err_msg: str) -> i32 {
+    if (opt == 0) {
+        // Returns Err(err_msg) as integer sentinel
+        return -1;
+    }
+    return opt;
+}
+
+pub fn ok_or(opt: i32, err: i32) -> i32 {
+    if (opt == 0) { return -1; }
+    return opt;
+}
+
+// ─── Inspection ───────────────────────────────────────────────────────────────
+
+pub fn contains(opt: i32, val: i32) -> bool {
+    return opt == val and opt != 0;
+}
+
+// ─── Version / info ───────────────────────────────────────────────────────────
+
+pub fn version() -> str {
+    return "std.option 1.0.0";
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

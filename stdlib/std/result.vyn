@@ -1,0 +1,186 @@
+// std/result.vyn — Result<T, E> standard library for Vyn
+// Provides: Ok, Err, is_ok, is_err, unwrap, unwrap_err, unwrap_or, map_err, and_then, or_else
+
+// ─── Result type constants ────────────────────────────────────────────────────
+// In the Vyn interpreter, Result values are represented as:
+//   Ok(val)  → {"__type__": "Result", "__tag__": "Ok",  "__value__": val}
+//   Err(err) → {"__type__": "Result", "__tag__": "Err", "__value__": err}
+// These stdlib functions work with the integer-level API for .vyn-only code.
+
+// ─── Predicates ───────────────────────────────────────────────────────────────
+
+pub fn is_ok(res: i32) -> bool {
+    return res >= 0;
+}
+
+pub fn is_err(res: i32) -> bool {
+    return res < 0;
+}
+
+// ─── Unwrap ───────────────────────────────────────────────────────────────────
+
+pub fn unwrap(res: i32) -> i32 {
+    if (res < 0) {
+        throw "unwrap() called on Err value";
+    }
+    return res;
+}
+
+pub fn unwrap_err(res: i32) -> i32 {
+    if (res >= 0) {
+        throw "unwrap_err() called on Ok value";
+    }
+    return -res;
+}
+
+pub fn unwrap_or(res: i32, default_val: i32) -> i32 {
+    if (res < 0) {
+        return default_val;
+    }
+    return res;
+}
+
+pub fn unwrap_or_else(res: i32, default_val: i32) -> i32 {
+    if (res < 0) {
+        return default_val;
+    }
+    return res;
+}
+
+pub fn expect(res: i32, msg: str) -> i32 {
+    if (res < 0) {
+        throw msg;
+    }
+    return res;
+}
+
+pub fn expect_err(res: i32, msg: str) -> i32 {
+    if (res >= 0) {
+        throw msg;
+    }
+    return -res;
+}
+
+// ─── Boolean combinators ──────────────────────────────────────────────────────
+
+pub fn and_res(a: i32, b: i32) -> i32 {
+    if (a < 0) {
+        return a;
+    }
+    return b;
+}
+
+pub fn or_res(a: i32, b: i32) -> i32 {
+    if (a >= 0) {
+        return a;
+    }
+    return b;
+}
+
+// ─── Conversion ───────────────────────────────────────────────────────────────
+
+pub fn ok_to_option(res: i32) -> i32 {
+    if (res < 0) {
+        return 0;
+    }
+    return res;
+}
+
+pub fn err_to_option(res: i32) -> i32 {
+    if (res >= 0) {
+        return 0;
+    }
+    return -res;
+}
+
+// ─── Inspection ───────────────────────────────────────────────────────────────
+
+pub fn contains_ok(res: i32, val: i32) -> bool {
+    return res >= 0 and res == val;
+}
+
+pub fn contains_err(res: i32, val: i32) -> bool {
+    return res < 0 and (-res) == val;
+}
+
+// ─── Arithmetic helpers (propagate errors) ────────────────────────────────────
+
+pub fn try_add(a: i32, b: i32) -> i32 {
+    if (a < 0) { return a; }
+    if (b < 0) { return b; }
+    return a + b;
+}
+
+pub fn try_mul(a: i32, b: i32) -> i32 {
+    if (a < 0) { return a; }
+    if (b < 0) { return b; }
+    return a * b;
+}
+
+pub fn try_div(a: i32, b: i32) -> i32 {
+    if (a < 0) { return a; }
+    if (b == 0) { return -1; }
+    return a / b;
+}
+
+// ─── Collection helpers ───────────────────────────────────────────────────────
+
+pub fn first_ok(a: i32, b: i32, c: i32) -> i32 {
+    if (a >= 0) { return a; }
+    if (b >= 0) { return b; }
+    if (c >= 0) { return c; }
+    return -1;
+}
+
+pub fn all_ok(a: i32, b: i32) -> bool {
+    return a >= 0 and b >= 0;
+}
+
+pub fn any_ok(a: i32, b: i32) -> bool {
+    return a >= 0 or b >= 0;
+}
+
+// ─── Error wrapping ───────────────────────────────────────────────────────────
+
+pub fn wrap_err(code: i32) -> i32 {
+    if (code >= 0) { return -1; }
+    return code;
+}
+
+pub fn map_err_code(res: i32, new_code: i32) -> i32 {
+    if (res >= 0) { return res; }
+    return -new_code;
+}
+
+// ─── String error helpers ─────────────────────────────────────────────────────
+
+pub fn unwrap_or_str(res: i32, default_val: i32, msg: str) -> i32 {
+    if (res < 0) {
+        log.error(msg);
+        return default_val;
+    }
+    return res;
+}
+
+// ─── Chaining ─────────────────────────────────────────────────────────────────
+
+pub fn chain(a: i32, b: i32) -> i32 {
+    if (a < 0) { return a; }
+    return b;
+}
+
+pub fn chain3(a: i32, b: i32, c: i32) -> i32 {
+    if (a < 0) { return a; }
+    if (b < 0) { return b; }
+    return c;
+}
+
+// ─── Version / info ───────────────────────────────────────────────────────────
+
+pub fn version() -> str {
+    return "std.result 1.0.0";
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

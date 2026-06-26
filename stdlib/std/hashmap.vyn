@@ -1,0 +1,294 @@
+// std/hashmap.vyn — HashMap<K, V> standard library for Vyn
+// Bridges to Python dict in the interpreter; compiled to VynHashMap in native mode.
+// Usage:
+//   import std.hashmap;
+//   let mut map = hashmap.new();
+//   hashmap.insert(map, "key", 42);
+//   let val = hashmap.get(map, "key");   // returns Option
+
+// ─── Constructor ──────────────────────────────────────────────────────────────
+
+pub fn new() -> i32 {
+    // Runtime: returns a fresh empty Python dict
+    return 0;
+}
+
+pub fn with_capacity(cap: i32) -> i32 {
+    // Runtime: same as new() — Python dicts auto-resize
+    return 0;
+}
+
+// ─── Insert / update ──────────────────────────────────────────────────────────
+
+pub fn insert(map: i32, key: str, val: i32) -> void {
+    // Runtime: map[key] = val
+    return;
+}
+
+pub fn insert_str(map: i32, key: str, val: str) -> void {
+    // Runtime: map[key] = val
+    return;
+}
+
+pub fn insert_f32(map: i32, key: str, val: f32) -> void {
+    return;
+}
+
+pub fn insert_bool(map: i32, key: str, val: bool) -> void {
+    return;
+}
+
+pub fn set(map: i32, key: str, val: i32) -> void {
+    // Alias for insert
+    return;
+}
+
+// ─── Get ──────────────────────────────────────────────────────────────────────
+
+pub fn get(map: i32, key: str) -> i32 {
+    // Runtime: returns Some(map[key]) or None
+    // In interpreter: returns the value or 0
+    return 0;
+}
+
+pub fn get_str(map: i32, key: str) -> str {
+    return "";
+}
+
+pub fn get_f32(map: i32, key: str) -> f32 {
+    return 0.0;
+}
+
+pub fn get_or(map: i32, key: str, default_val: i32) -> i32 {
+    // Runtime: map.get(key, default_val)
+    return default_val;
+}
+
+pub fn get_or_str(map: i32, key: str, default_val: str) -> str {
+    return default_val;
+}
+
+pub fn get_or_insert(map: i32, key: str, default_val: i32) -> i32 {
+    // Runtime: if key not in map, insert default and return it
+    return default_val;
+}
+
+// ─── Remove ───────────────────────────────────────────────────────────────────
+
+pub fn remove(map: i32, key: str) -> bool {
+    // Runtime: del map[key]; returns True if existed
+    return false;
+}
+
+pub fn remove_entry(map: i32, key: str) -> i32 {
+    // Runtime: pops and returns the value (or 0)
+    return 0;
+}
+
+// ─── Lookup / containment ────────────────────────────────────────────────────
+
+pub fn contains(map: i32, key: str) -> bool {
+    // Runtime: key in map
+    return false;
+}
+
+pub fn contains_value(map: i32, val: i32) -> bool {
+    // Runtime: val in map.values()
+    return false;
+}
+
+// ─── Size ─────────────────────────────────────────────────────────────────────
+
+pub fn len(map: i32) -> i32 {
+    // Runtime: len(map)
+    return 0;
+}
+
+pub fn is_empty(map: i32) -> bool {
+    return false;
+}
+
+// ─── Keys / Values ───────────────────────────────────────────────────────────
+
+pub fn keys(map: i32) -> i32 {
+    // Runtime: returns list(map.keys())
+    return 0;
+}
+
+pub fn values(map: i32) -> i32 {
+    // Runtime: returns list(map.values())
+    return 0;
+}
+
+pub fn entries(map: i32) -> i32 {
+    // Runtime: returns list of [key, val] pairs
+    return 0;
+}
+
+pub fn key_at(map: i32, idx: i32) -> str {
+    // Runtime: list(map.keys())[idx]
+    return "";
+}
+
+pub fn value_at(map: i32, idx: i32) -> i32 {
+    return 0;
+}
+
+// ─── Mutation ─────────────────────────────────────────────────────────────────
+
+pub fn clear(map: i32) -> void {
+    // Runtime: map.clear()
+    return;
+}
+
+pub fn merge(dst: i32, src: i32) -> void {
+    // Runtime: dst.update(src)
+    return;
+}
+
+pub fn merge_copy(a: i32, b: i32) -> i32 {
+    // Runtime: returns {**a, **b}
+    return 0;
+}
+
+pub fn retain(map: i32, predicate_fn: str) -> void {
+    // Runtime: removes entries where predicate returns false
+    return;
+}
+
+// ─── Conversion ───────────────────────────────────────────────────────────────
+
+pub fn from_keys(keys_arr: i32, default_val: i32) -> i32 {
+    // Runtime: dict.fromkeys(keys_arr, default_val)
+    return 0;
+}
+
+pub fn to_json(map: i32) -> str {
+    // Runtime: json.stringify(map)
+    return "{}";
+}
+
+pub fn from_json(json_str: str) -> i32 {
+    // Runtime: json.parse(json_str) as dict
+    return 0;
+}
+
+pub fn clone(map: i32) -> i32 {
+    // Runtime: dict(map)  — shallow copy
+    return 0;
+}
+
+pub fn deep_clone(map: i32) -> i32 {
+    // Runtime: copy.deepcopy(map)
+    return 0;
+}
+
+// ─── Iteration helpers ────────────────────────────────────────────────────────
+
+pub fn for_each(map: i32, callback_name: str) -> void {
+    // Runtime: calls callback_name(key, val) for each entry
+    return;
+}
+
+pub fn map_values(map: i32, transform_fn: str) -> i32 {
+    // Runtime: returns new map with transformed values
+    return 0;
+}
+
+pub fn filter_entries(map: i32, predicate_fn: str) -> i32 {
+    // Runtime: returns new map with only matching entries
+    return 0;
+}
+
+pub fn reduce_values(map: i32, init: i32) -> i32 {
+    // Runtime: folds values
+    return init;
+}
+
+// ─── Aggregation ─────────────────────────────────────────────────────────────
+
+pub fn count_where(map: i32, predicate_fn: str) -> i32 {
+    return 0;
+}
+
+pub fn sum_values(map: i32) -> i32 {
+    // Runtime: sum(map.values())
+    return 0;
+}
+
+pub fn min_value(map: i32) -> i32 {
+    return 0;
+}
+
+pub fn max_value(map: i32) -> i32 {
+    return 0;
+}
+
+pub fn any_value(map: i32, val: i32) -> bool {
+    return false;
+}
+
+pub fn all_values(map: i32, val: i32) -> bool {
+    return false;
+}
+
+// ─── String-keyed convenience ─────────────────────────────────────────────────
+
+pub fn get_nested(map: i32, key1: str, key2: str) -> i32 {
+    // Runtime: map.get(key1, {}).get(key2, 0)
+    return 0;
+}
+
+pub fn insert_nested(map: i32, key1: str, key2: str, val: i32) -> void {
+    return;
+}
+
+// ─── Multi-map helpers ────────────────────────────────────────────────────────
+
+pub fn append(map: i32, key: str, val: i32) -> void {
+    // Runtime: map.setdefault(key, []).append(val)
+    return;
+}
+
+pub fn get_list(map: i32, key: str) -> i32 {
+    // Runtime: returns map.get(key, [])
+    return 0;
+}
+
+// ─── Equality / comparison ────────────────────────────────────────────────────
+
+pub fn equals(a: i32, b: i32) -> bool {
+    // Runtime: a == b
+    return false;
+}
+
+pub fn diff_keys(a: i32, b: i32) -> i32 {
+    // Runtime: returns list of keys in a not in b
+    return 0;
+}
+
+pub fn intersect_keys(a: i32, b: i32) -> i32 {
+    // Runtime: returns list of keys common to a and b
+    return 0;
+}
+
+// ─── Debug ────────────────────────────────────────────────────────────────────
+
+pub fn debug_print(map: i32) -> void {
+    io.println(to_json(map));
+    return;
+}
+
+pub fn to_str(map: i32) -> str {
+    return to_json(map);
+}
+
+// ─── Version / info ───────────────────────────────────────────────────────────
+
+pub fn version() -> str {
+    return "std.hashmap 1.0.0";
+}
+
+pub fn init() -> i32 {
+    return 0;
+}

@@ -554,4 +554,513 @@ def dispatch(mod: str, method: str, args: list, interpreter: Optional["Interpret
             time.sleep(int(args[0]) / 1000.0)
             return 0
 
+    # ── hashmap ───────────────────────────────────────────────────────────────
+    if mod == "hashmap":
+        if method == "new":
+            return {}
+        if method == "with_capacity":
+            return {}
+        m = args[0] if args and isinstance(args[0], dict) else {}
+        if method == "insert" or method == "set":
+            if len(args) >= 3:
+                m[args[1]] = args[2]
+            return 0
+        if method == "insert_str":
+            if len(args) >= 3:
+                m[args[1]] = str(args[2])
+            return 0
+        if method == "insert_f32":
+            if len(args) >= 3:
+                m[args[1]] = float(args[2])
+            return 0
+        if method == "insert_bool":
+            if len(args) >= 3:
+                m[args[1]] = bool(args[2])
+            return 0
+        if method == "get":
+            key = args[1] if len(args) > 1 else None
+            if key in m:
+                return {"__type__": "Option", "__tag__": "Some", "__value__": m[key]}
+            return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "get_str":
+            return str(m.get(args[1], "")) if len(args) > 1 else ""
+        if method == "get_f32":
+            return float(m.get(args[1], 0.0)) if len(args) > 1 else 0.0
+        if method == "get_or":
+            key = args[1] if len(args) > 1 else None
+            default = args[2] if len(args) > 2 else 0
+            return m.get(key, default)
+        if method == "get_or_str":
+            key = args[1] if len(args) > 1 else None
+            default = args[2] if len(args) > 2 else ""
+            return m.get(key, default)
+        if method == "get_or_insert":
+            key = args[1] if len(args) > 1 else None
+            default = args[2] if len(args) > 2 else 0
+            if key not in m:
+                m[key] = default
+            return m.get(key, default)
+        if method == "remove":
+            key = args[1] if len(args) > 1 else None
+            existed = key in m
+            if existed:
+                del m[key]
+            return existed
+        if method == "remove_entry":
+            key = args[1] if len(args) > 1 else None
+            return m.pop(key, 0)
+        if method == "contains":
+            key = args[1] if len(args) > 1 else None
+            return key in m
+        if method == "contains_value":
+            val = args[1] if len(args) > 1 else None
+            return val in m.values()
+        if method == "len":
+            return len(m)
+        if method == "is_empty":
+            return len(m) == 0
+        if method == "keys":
+            return list(m.keys())
+        if method == "values":
+            return list(m.values())
+        if method == "entries":
+            return [[k, v] for k, v in m.items()]
+        if method == "key_at":
+            idx = int(args[1]) if len(args) > 1 else 0
+            ks = list(m.keys())
+            return ks[idx] if 0 <= idx < len(ks) else ""
+        if method == "value_at":
+            idx = int(args[1]) if len(args) > 1 else 0
+            vs = list(m.values())
+            return vs[idx] if 0 <= idx < len(vs) else 0
+        if method == "clear":
+            m.clear()
+            return 0
+        if method == "merge":
+            src = args[1] if len(args) > 1 and isinstance(args[1], dict) else {}
+            m.update(src)
+            return 0
+        if method == "merge_copy":
+            src = args[1] if len(args) > 1 and isinstance(args[1], dict) else {}
+            result = dict(m)
+            result.update(src)
+            return result
+        if method == "clone":
+            return dict(m)
+        if method == "to_json":
+            try:
+                return json.dumps(m)
+            except Exception:
+                return "{}"
+        if method == "from_json":
+            try:
+                return json.loads(str(args[0]))
+            except Exception:
+                return {}
+        if method == "sum_values":
+            try:
+                return sum(v for v in m.values() if isinstance(v, (int, float)))
+            except Exception:
+                return 0
+        if method == "min_value":
+            try:
+                nums = [v for v in m.values() if isinstance(v, (int, float))]
+                return min(nums) if nums else 0
+            except Exception:
+                return 0
+        if method == "max_value":
+            try:
+                nums = [v for v in m.values() if isinstance(v, (int, float))]
+                return max(nums) if nums else 0
+            except Exception:
+                return 0
+        if method == "equals":
+            other = args[1] if len(args) > 1 and isinstance(args[1], dict) else {}
+            return m == other
+        if method == "diff_keys":
+            other = args[1] if len(args) > 1 and isinstance(args[1], dict) else {}
+            return [k for k in m if k not in other]
+        if method == "intersect_keys":
+            other = args[1] if len(args) > 1 and isinstance(args[1], dict) else {}
+            return [k for k in m if k in other]
+        if method == "to_str":
+            try:
+                return json.dumps(m)
+            except Exception:
+                return str(m)
+        if method == "debug_print":
+            try:
+                print(json.dumps(m, indent=2))
+            except Exception:
+                print(str(m))
+            return 0
+        if method == "append":
+            key = args[1] if len(args) > 1 else None
+            val = args[2] if len(args) > 2 else 0
+            if key not in m:
+                m[key] = []
+            if isinstance(m[key], list):
+                m[key].append(val)
+            return 0
+        if method == "get_list":
+            key = args[1] if len(args) > 1 else None
+            return m.get(key, [])
+        if method == "get_nested":
+            k1 = args[1] if len(args) > 1 else None
+            k2 = args[2] if len(args) > 2 else None
+            inner = m.get(k1, {})
+            if isinstance(inner, dict):
+                return inner.get(k2, 0)
+            return 0
+        if method == "insert_nested":
+            k1 = args[1] if len(args) > 1 else None
+            k2 = args[2] if len(args) > 2 else None
+            val = args[3] if len(args) > 3 else 0
+            if k1 not in m:
+                m[k1] = {}
+            if isinstance(m[k1], dict):
+                m[k1][k2] = val
+            return 0
+        if method == "version":
+            return "std.hashmap 1.0.0"
+        if method == "init":
+            return 0
+
+    # ── option ────────────────────────────────────────────────────────────────
+    if mod == "option":
+        def _is_some(v):
+            if isinstance(v, dict) and v.get("__type__") == "Option":
+                return v.get("__tag__") == "Some"
+            return v is not None and v != 0
+
+        def _inner(v):
+            if isinstance(v, dict) and v.get("__type__") == "Option":
+                return v.get("__value__")
+            return v
+
+        opt = args[0] if args else None
+        if method == "some":
+            val = args[0] if args else None
+            return {"__type__": "Option", "__tag__": "Some", "__value__": val}
+        if method == "none":
+            return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "is_some":
+            return _is_some(opt)
+        if method == "is_none":
+            return not _is_some(opt)
+        if method == "unwrap":
+            if not _is_some(opt):
+                raise RuntimeError("unwrap() called on None")
+            return _inner(opt)
+        if method == "unwrap_or":
+            default = args[1] if len(args) > 1 else 0
+            return _inner(opt) if _is_some(opt) else default
+        if method == "expect":
+            msg = str(args[1]) if len(args) > 1 else "expect() on None"
+            if not _is_some(opt):
+                raise RuntimeError(msg)
+            return _inner(opt)
+        if method == "flatten":
+            return _inner(opt) if _is_some(opt) else opt
+        if method == "or_else":
+            other = args[1] if len(args) > 1 else None
+            return opt if _is_some(opt) else other
+        if method == "contains":
+            val = args[1] if len(args) > 1 else None
+            return _is_some(opt) and _inner(opt) == val
+        if method == "map":
+            if not _is_some(opt):
+                return opt
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure":
+                if interpreter:
+                    mapped = interpreter._call_closure(fn, [_inner(opt)])
+                    return {"__type__": "Option", "__tag__": "Some", "__value__": mapped}
+            return opt
+        if method == "and_then":
+            if not _is_some(opt):
+                return opt
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure":
+                if interpreter:
+                    return interpreter._call_closure(fn, [_inner(opt)])
+            return opt
+        if method == "filter":
+            if not _is_some(opt):
+                return opt
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure":
+                if interpreter:
+                    keep = interpreter._call_closure(fn, [_inner(opt)])
+                    if not keep:
+                        return {"__type__": "Option", "__tag__": "None", "__value__": None}
+            return opt
+        if method == "version":
+            return "std.option 1.0.0"
+        if method == "init":
+            return 0
+
+    # ── result ────────────────────────────────────────────────────────────────
+    if mod == "result":
+        def _is_ok(v):
+            if isinstance(v, dict) and v.get("__type__") == "Result":
+                return v.get("__tag__") == "Ok"
+            return isinstance(v, (int, float)) and v >= 0
+
+        def _ok_val(v):
+            if isinstance(v, dict) and v.get("__type__") == "Result":
+                return v.get("__value__")
+            return v
+
+        def _err_val(v):
+            if isinstance(v, dict) and v.get("__type__") == "Result":
+                return v.get("__value__")
+            return None
+
+        res = args[0] if args else None
+        if method == "ok":
+            val = args[0] if args else None
+            return {"__type__": "Result", "__tag__": "Ok", "__value__": val}
+        if method == "err":
+            val = args[0] if args else None
+            return {"__type__": "Result", "__tag__": "Err", "__value__": val}
+        if method == "is_ok":
+            return _is_ok(res)
+        if method == "is_err":
+            return not _is_ok(res)
+        if method == "unwrap":
+            if not _is_ok(res):
+                raise RuntimeError(f"unwrap() on Err: {_err_val(res)}")
+            return _ok_val(res)
+        if method == "unwrap_err":
+            if _is_ok(res):
+                raise RuntimeError("unwrap_err() on Ok value")
+            return _err_val(res)
+        if method == "unwrap_or":
+            default = args[1] if len(args) > 1 else 0
+            return _ok_val(res) if _is_ok(res) else default
+        if method == "expect":
+            msg = str(args[1]) if len(args) > 1 else "expect() on Err"
+            if not _is_ok(res):
+                raise RuntimeError(msg)
+            return _ok_val(res)
+        if method == "expect_err":
+            msg = str(args[1]) if len(args) > 1 else "expect_err() on Ok"
+            if _is_ok(res):
+                raise RuntimeError(msg)
+            return _err_val(res)
+        if method == "map":
+            if not _is_ok(res):
+                return res
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure":
+                if interpreter:
+                    mapped = interpreter._call_closure(fn, [_ok_val(res)])
+                    return {"__type__": "Result", "__tag__": "Ok", "__value__": mapped}
+            return res
+        if method == "map_err":
+            if _is_ok(res):
+                return res
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure":
+                if interpreter:
+                    mapped = interpreter._call_closure(fn, [_err_val(res)])
+                    return {"__type__": "Result", "__tag__": "Err", "__value__": mapped}
+            return res
+        if method == "and_then":
+            if not _is_ok(res):
+                return res
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure":
+                if interpreter:
+                    return interpreter._call_closure(fn, [_ok_val(res)])
+            return res
+        if method == "or_else":
+            if _is_ok(res):
+                return res
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure":
+                if interpreter:
+                    return interpreter._call_closure(fn, [_err_val(res)])
+            return res
+        if method == "ok_to_option":
+            if _is_ok(res):
+                return {"__type__": "Option", "__tag__": "Some", "__value__": _ok_val(res)}
+            return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "err_to_option":
+            if not _is_ok(res):
+                return {"__type__": "Option", "__tag__": "Some", "__value__": _err_val(res)}
+            return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "version":
+            return "std.result 1.0.0"
+        if method == "init":
+            return 0
+
+    # ── iter ──────────────────────────────────────────────────────────────────
+    if mod == "iter":
+        iterable = args[0] if args else []
+        # Normalize to list
+        if isinstance(iterable, dict):
+            if iterable.get("__type__") == "Range":
+                start = iterable.get("__start__", 0)
+                end   = iterable.get("__end__", 0)
+                inc   = iterable.get("__inclusive__", False)
+                iterable = list(range(start, end + (1 if inc else 0)))
+            else:
+                iterable = list(iterable.values())
+        elif not isinstance(iterable, list):
+            iterable = list(iterable) if hasattr(iterable, '__iter__') else []
+
+        if method == "map":
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                return [interpreter._call_closure(fn, [x]) for x in iterable]
+            return iterable
+        if method == "filter":
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                return [x for x in iterable if interpreter._truthy(interpreter._call_closure(fn, [x]))]
+            return iterable
+        if method == "fold" or method == "reduce":
+            init = args[1] if len(args) > 1 else 0
+            fn   = args[2] if len(args) > 2 else None
+            acc  = init
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                for x in iterable:
+                    acc = interpreter._call_closure(fn, [acc, x])
+            return acc
+        if method == "collect":
+            return list(iterable)
+        if method == "enumerate":
+            return [[i, v] for i, v in enumerate(iterable)]
+        if method == "zip":
+            other = args[1] if len(args) > 1 else []
+            if not isinstance(other, list):
+                other = list(other)
+            return [[a, b] for a, b in zip(iterable, other)]
+        if method == "take":
+            n = int(args[1]) if len(args) > 1 else 0
+            return iterable[:n]
+        if method == "skip":
+            n = int(args[1]) if len(args) > 1 else 0
+            return iterable[n:]
+        if method == "chain":
+            other = args[1] if len(args) > 1 else []
+            if not isinstance(other, list):
+                other = list(other)
+            return list(iterable) + other
+        if method == "flat_map":
+            fn = args[1] if len(args) > 1 else None
+            result = []
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                for x in iterable:
+                    sub = interpreter._call_closure(fn, [x])
+                    if isinstance(sub, list):
+                        result.extend(sub)
+                    else:
+                        result.append(sub)
+            return result
+        if method == "any":
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                return any(interpreter._truthy(interpreter._call_closure(fn, [x])) for x in iterable)
+            return len(iterable) > 0
+        if method == "all":
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                return all(interpreter._truthy(interpreter._call_closure(fn, [x])) for x in iterable)
+            return True
+        if method == "count":
+            return len(iterable)
+        if method == "find":
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                for x in iterable:
+                    if interpreter._truthy(interpreter._call_closure(fn, [x])):
+                        return {"__type__": "Option", "__tag__": "Some", "__value__": x}
+            return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "position":
+            fn = args[1] if len(args) > 1 else None
+            if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                for i, x in enumerate(iterable):
+                    if interpreter._truthy(interpreter._call_closure(fn, [x])):
+                        return {"__type__": "Option", "__tag__": "Some", "__value__": i}
+            return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "min":
+            if not iterable:
+                return {"__type__": "Option", "__tag__": "None", "__value__": None}
+            try:
+                return {"__type__": "Option", "__tag__": "Some", "__value__": min(iterable)}
+            except Exception:
+                return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "max":
+            if not iterable:
+                return {"__type__": "Option", "__tag__": "None", "__value__": None}
+            try:
+                return {"__type__": "Option", "__tag__": "Some", "__value__": max(iterable)}
+            except Exception:
+                return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "sum":
+            try:
+                return sum(iterable)
+            except Exception:
+                return 0
+        if method == "product":
+            result = 1
+            for x in iterable:
+                result *= x
+            return result
+        if method == "last":
+            if not iterable:
+                return {"__type__": "Option", "__tag__": "None", "__value__": None}
+            return {"__type__": "Option", "__tag__": "Some", "__value__": iterable[-1]}
+        if method == "nth":
+            n = int(args[1]) if len(args) > 1 else 0
+            if 0 <= n < len(iterable):
+                return {"__type__": "Option", "__tag__": "Some", "__value__": iterable[n]}
+            return {"__type__": "Option", "__tag__": "None", "__value__": None}
+        if method == "step_by":
+            n = int(args[1]) if len(args) > 1 else 1
+            return iterable[::n]
+        if method == "cycle":
+            n = int(args[1]) if len(args) > 1 else 1
+            return list(iterable) * n
+        if method == "peekable":
+            return list(iterable)
+        if method == "reverse":
+            return list(reversed(iterable))
+        if method == "sort":
+            try:
+                return sorted(iterable)
+            except Exception:
+                return list(iterable)
+        if method == "sort_by":
+            fn = args[1] if len(args) > 1 else None
+            try:
+                if fn and isinstance(fn, dict) and fn.get("__type__") == "Closure" and interpreter:
+                    return sorted(iterable, key=lambda x: interpreter._call_closure(fn, [x]))
+                return sorted(iterable)
+            except Exception:
+                return list(iterable)
+        if method == "dedup":
+            seen = []
+            result = []
+            for x in iterable:
+                if x not in seen:
+                    seen.append(x)
+                    result.append(x)
+            return result
+        if method == "flatten":
+            result = []
+            for x in iterable:
+                if isinstance(x, list):
+                    result.extend(x)
+                else:
+                    result.append(x)
+            return result
+        if method == "version":
+            return "std.iter 1.0.0"
+        if method == "init":
+            return 0
+
     return _MISSING
