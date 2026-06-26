@@ -1096,8 +1096,17 @@ class Parser:
         # struct / enum pattern avec nom majuscule
         if tok.kind == TokenKind.IDENT and tok.value[0].isupper():
             name = self._advance().value
-            # Enum::Variant
+            # Enum::Variant (double-colon syntax)
             if self._match(TokenKind.DCOLON):
+                variant = self._parse_ident("variant")
+                payload = None
+                if self._match(TokenKind.LPAREN):
+                    payload = self._parse_single_pattern()
+                    self._expect(TokenKind.RPAREN)
+                return EnumPattern(name, variant, payload)
+            # Enum.Variant (dot syntax — legacy style used in existing .vyn files)
+            if self._check(TokenKind.DOT):
+                self._advance()
                 variant = self._parse_ident("variant")
                 payload = None
                 if self._match(TokenKind.LPAREN):
@@ -1116,16 +1125,19 @@ class Parser:
             # Variable capture (nom minuscule conventionnel, mais IDENT majuscule = enum unit)
             return EnumPattern("", name, None)
 
-        # Enum.Variant (accès par point, legacy)
+        # Enum.Variant (accès par point, legacy) ou simple variable de capture
         if tok.kind == TokenKind.IDENT:
             name = self._advance().value
             if self._check(TokenKind.DOT):
                 self._advance()
                 variant = self._parse_ident("variant")
-                return EnumPattern(name, variant, None)
-            # variable de capture
-            is_mut = False
-            return IdentPattern(name, is_mut)
+                payload = None
+                if self._match(TokenKind.LPAREN):
+                    payload = self._parse_single_pattern()
+                    self._expect(TokenKind.RPAREN)
+                return EnumPattern(name, variant, payload)
+            # variable de capture (minuscule)
+            return IdentPattern(name, False)
 
         # type keyword comme capture (i32, str …)
         if tok.kind in _TYPE_KINDS and tok.kind != TokenKind.IDENT:

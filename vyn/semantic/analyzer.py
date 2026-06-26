@@ -509,11 +509,19 @@ class SemanticAnalyzer:
         if isinstance(stmt, LetStmt):
             if stmt.value is not None:
                 val_type = self._infer(stmt.value)
-                if stmt.type and not self._types_compat(stmt.type, val_type):
-                    self.errors.append(
-                        f"type incompatible: attendu '{stmt.type}', "
-                        f"obtenu '{val_type}' pour '{stmt.name}'"
-                    )
+                # Only warn on concrete primitive mismatches
+                if (stmt.type
+                        and val_type.kind not in (TKind.UNKNOWN, TKind.NEVER)
+                        and val_type.name not in ("?", "void", "array", "")
+                        and not self._types_compat(stmt.type, val_type)):
+                    exp_prim = stmt.type.name in self.PRIMITIVES
+                    got_prim = val_type.name in self.PRIMITIVES
+                    if exp_prim and got_prim and stmt.type.name != val_type.name:
+                        if not val_type.is_numeric():
+                            self.warnings.append(
+                                f"type potentiellement incompatible: attendu '{stmt.type}', "
+                                f"obtenu '{val_type}' pour '{stmt.name}'"
+                            )
             declared_type = stmt.type or (self._type_node_of(self._infer(stmt.value)) if stmt.value else TypeNode("void"))
             vtype = from_node(declared_type) if declared_type else T_UNKN
             self._define(Symbol(stmt.name, declared_type, vtype, stmt.is_mut, False, False, "variable"))
@@ -532,10 +540,20 @@ class SemanticAnalyzer:
         elif isinstance(stmt, ReturnStmt):
             if stmt.value is not None:
                 val_type = self._infer(stmt.value)
-                if ret.name not in ("void", "?") and not self._types_compat(ret, val_type):
-                    self.errors.append(
-                        f"type de retour incompatible: attendu '{ret}', obtenu '{val_type}'"
-                    )
+                # Only flag concrete primitive mismatches — unknown/array/void are tolerated
+                if (ret.name not in ("void", "?")
+                        and val_type.kind not in (TKind.UNKNOWN, TKind.NEVER)
+                        and val_type.name not in ("?", "void", "array", "")
+                        and not self._types_compat(ret, val_type)):
+                    # Restrict to clear primitive vs primitive conflicts only
+                    ret_prim = ret.name in self.PRIMITIVES
+                    got_prim = val_type.name in self.PRIMITIVES
+                    if ret_prim and got_prim and ret.name != val_type.name:
+                        # Allow numeric coercions silently
+                        if not (val_type.is_numeric() and ret.name in self.PRIMITIVES):
+                            self.errors.append(
+                                f"type de retour incompatible: attendu '{ret}', obtenu '{val_type}'"
+                            )
 
         # ── if ────────────────────────────────────────────────────────────────
         elif isinstance(stmt, IfStmt):
@@ -974,14 +992,13 @@ class SemanticAnalyzer:
         if sig:
             return sig.ret_type
 
-        # On ignore silencieusement les identifiants issus du prélude injecté
-        # (fonctions définies inline par inject_prelude) — pas une vraie erreur
-        # sauf si c'est vraiment inconnu de partout
-        # ── Namespace de module connu (io, db, ai, math, etc.) ───────────────
-        if name in _KNOWN_MODULE_NAMES:
-            return T_UNKN   # module valide, pas une erreur
+        # ── Modules définis par l'utilisateur (mod utils { … }) ──────────────
+        # Si name est un préfixe de fonctions connues (ex: "utils.answer" → "utils")
+        for fn_key in self.functions:
+            if fn_key.startswith(name + "."):
+                return T_UNKN  # namespace valide, pas une erreur
 
-        # Enum variant (unit) — recherche globale
+        # ── Enum variant (unit) — recherche globale ───────────────────────────
         for ename, edecl in self.enums.items():
             for v in edecl.variants:
                 if v.name == name:
@@ -1432,7 +1449,13 @@ class SemanticAnalyzer:
     def _types_compat(self, expected: TypeNode, got: VynType) -> bool:
         """Vérifie la compatibilité entre un TypeNode attendu et un VynType obtenu."""
         exp_name = expected.name
+        # Toujours compatible si expected est void / inconnu
         if exp_name in ("void", "?"):
+            return True
+        # Toujours compatible si got est inconnu / never / vide
+        if got.kind in (TKind.UNKNOWN, TKind.NEVER):
+            return True
+        if got.name in ("?", "void", "array", ""):
             return True
         if exp_name in self.type_aliases:
             resolved = self._resolve_type(expected)
@@ -1440,12 +1463,17 @@ class SemanticAnalyzer:
         if exp_name in self._generic_params:
             return True
         got_name = got.name
-        # Compatibilité numérique
+        # Compatibilité numérique (toutes les combinaisons numériques sont OK)
+        if exp_name in NUM_TYPES and got_name in NUM_TYPES:
+            return True
         if exp_name in NUM_TYPES and got_name in NUM_TYPES:
             return True
         if exp_name == got_name:
             return True
         if got == T_UNKN:
+            return True
+        # Module namespace → toujours compat
+        if got_name in _KNOWN_MODULE_NAMES:
             return True
         # Option compat
         if exp_name == "Option" and got.is_option():
@@ -1454,6 +1482,12 @@ class SemanticAnalyzer:
             return True
         # Struct compat
         if exp_name in self.structs and got.kind == TKind.STRUCT and got.name == exp_name:
+            return True
+        # Enum compat
+        if exp_name in self.enums and got.kind == TKind.ENUM and got.name == exp_name:
+            return True
+        # fn / closure compat
+        if exp_name == "fn" and got.kind in (TKind.FN, TKind.CLOSURE):
             return True
         return False
 
