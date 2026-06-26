@@ -1,4 +1,8 @@
-"""Analyseur sémantique Vyn — typage statique complet, génériques, closures, Option/Result, for/while, patterns."""
+"""Analyseur sémantique Vyn — typage statique complet, génériques, closures, Option/Result, for/while, patterns.
+Module-aware: io, db, ai, math, str, fs, net, http, server, html, css, log, sys, time,
+vec, rand, hash, thread, sync, crypto, mem, gui, numpy, torch, tensorflow, cv,
+pandas, sklearn, plot, hashmap, option, result, iter sont reconnus comme namespaces.
+"""
 from __future__ import annotations
 
 import re
@@ -128,6 +132,16 @@ _STD_SYMBOLS: List[Tuple[str, Tuple[str, ...]]] = [
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Erreurs sémantiques
 # ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── Ensemble des noms de modules connus ─────────────────────────────────────
+_KNOWN_MODULE_NAMES: set = {mod for mod, _ in _STD_SYMBOLS} | {
+    "std", "math", "io", "db", "ai", "json", "fs", "net", "http",
+    "server", "html", "css", "log", "sys", "time", "vec", "rand",
+    "hash", "thread", "sync", "crypto", "mem", "gui", "numpy",
+    "torch", "tensorflow", "cv", "pandas", "sklearn", "plot",
+    "hashmap", "option", "result", "iter", "str",
+}
+
 
 @dataclass
 class SemanticError(Exception):
@@ -918,14 +932,6 @@ class SemanticAnalyzer:
         if name == "Err":
             return VynType.fn_(T_UNKN, ret=VynType.result(T_UNKN, T_UNKN))
 
-        # Enum variant (unit)
-        for ename, edecl in self.enums.items():
-            for v in edecl.variants:
-                if v.name == name:
-                    if v.payload:
-                        return VynType.fn_(from_node(v.payload), ret=VynType.enum_(ename))
-                    return VynType.enum_(ename)
-
         # Portée lexicale
         sym = self._lookup(name)
         if sym:
@@ -949,6 +955,40 @@ class SemanticAnalyzer:
         if name in self.structs:
             return VynType.struct_(name)
 
+        # ── Namespace de module connu (io, db, ai, math, str, …) ─────────────
+        # Ces noms sont utilisés comme préfixes : io.println(...), db.open(...)
+        # On retourne T_UNKN sans erreur : le membre sera vérifié dans _infer_member_call
+        if name in _KNOWN_MODULE_NAMES:
+            return T_UNKN
+
+        # Enum connu (accès à ses variants)
+        if name in self.enums:
+            return VynType.enum_(name)
+
+        # Alias de type
+        if name in self.type_aliases:
+            return from_node(self.type_aliases[name])
+
+        # Registre stdlib
+        sig = self._registry.fn_sig(name)
+        if sig:
+            return sig.ret_type
+
+        # On ignore silencieusement les identifiants issus du prélude injecté
+        # (fonctions définies inline par inject_prelude) — pas une vraie erreur
+        # sauf si c'est vraiment inconnu de partout
+        # ── Namespace de module connu (io, db, ai, math, etc.) ───────────────
+        if name in _KNOWN_MODULE_NAMES:
+            return T_UNKN   # module valide, pas une erreur
+
+        # Enum variant (unit) — recherche globale
+        for ename, edecl in self.enums.items():
+            for v in edecl.variants:
+                if v.name == name:
+                    if v.payload:
+                        return VynType.fn_(from_node(v.payload), ret=VynType.enum_(ename))
+                    return VynType.enum_(ename)
+
         self.errors.append(f"identifiant inconnu: '{name}'")
         return T_UNKN
 
@@ -959,12 +999,11 @@ class SemanticAnalyzer:
         args = expr.args
         n_args = len(args)
 
-        # Vérifier les arguments
-        for a in args:
-            self._infer(a)
-
         # ── Appel de méthode : obj.method(args) ──────────────────────────────
+        # On vérifie les args APRÈS pour éviter de doubler les erreurs
         if isinstance(expr.callee, MemberAccess):
+            for a in args:
+                self._infer(a)
             return self._infer_member_call(expr.callee.object, expr.callee.member, args)
 
         # ── Appel direct : name(args) ─────────────────────────────────────────
@@ -1066,8 +1105,11 @@ class SemanticAnalyzer:
 
     def _infer_member_access(self, expr: MemberAccess) -> VynType:
         """Infère le type d'un accès membre (obj.field ou mod.sym)."""
+        saved_errors = len(self.errors)
         obj_type = self._infer(expr.object)
-        member   = expr.member
+        if isinstance(expr.object, Identifier) and expr.object.name in _KNOWN_MODULE_NAMES:
+            del self.errors[saved_errors:]
+        member = expr.member
 
         # Accès module (obj est un identifiant connu comme module)
         if isinstance(expr.object, Identifier):
@@ -1090,7 +1132,7 @@ class SemanticAnalyzer:
                 return self.consts[full].vtype
 
         # Accès de champ sur struct
-        if obj_type.kind == TKind.STRUCT:
+        if obj_type.kind == TKind.STRUCT and obj_type.name not in _KNOWN_MODULE_NAMES:
             field_vtype = self._registry.field_type(obj_type.name, member)
             if field_vtype:
                 return field_vtype
@@ -1098,23 +1140,44 @@ class SemanticAnalyzer:
             if struct_info and member in struct_info.fields:
                 return from_node(struct_info.fields[member].type)
 
-        # Accès de variant d'enum
+        # Accès de variant d'enum ou membre de module
         if isinstance(expr.object, Identifier):
-            enum_name = expr.object.name
-            if enum_name in self.enums:
-                edecl = self.enums[enum_name]
+            ns = expr.object.name
+
+            # Module connu → chercher ns.member dans le registre et scope builtin
+            if ns in _KNOWN_MODULE_NAMES:
+                full = f"{ns}.{member}"
+                sym = self._lookup(full)
+                if sym:
+                    return sym.vtype if sym.vtype != T_UNKN else T_UNKN
+                if full in self.functions:
+                    return from_node(self.functions[full].return_type)
+                sig = self._registry.fn_sig(full)
+                if sig:
+                    return sig.ret_type
+                return T_UNKN
+
+            # Enum connu → accès de variant
+            if ns in self.enums:
+                edecl = self.enums[ns]
                 for v in edecl.variants:
                     if v.name == member:
                         if v.payload:
-                            return VynType.fn_(from_node(v.payload), ret=VynType.enum_(enum_name))
-                        return VynType.enum_(enum_name)
+                            return VynType.fn_(from_node(v.payload), ret=VynType.enum_(ns))
+                        return VynType.enum_(ns)
 
         return T_UNKN
 
     def _infer_member_call(self, obj: Expr, method: str, args: List[Expr]) -> VynType:
         """Infère le type d'un appel de méthode obj.method(args)."""
+        # Inférer le type de l'objet — sans propager d'erreur pour les modules connus
+        saved_errors = len(self.errors)
         obj_type = self._infer(obj)
-        n_args   = len(args)
+        # Supprimer les erreurs générées par les noms de modules (io, db, ai…)
+        if isinstance(obj, Identifier) and obj.name in _KNOWN_MODULE_NAMES:
+            del self.errors[saved_errors:]
+
+        n_args = len(args)
 
         # Objet = identifiant → accès module std
         if isinstance(obj, Identifier):
@@ -1129,19 +1192,23 @@ class SemanticAnalyzer:
             if mod == "result" or obj_type.is_result():
                 return self._infer_result_method(obj_type, method, args)
 
-            # Fonction dans les fonctions connues
+            # Fonction dans les fonctions connues (namespace mod.fn)
             if full in self.functions:
                 fn = self.functions[full]
                 return self._check_fn_call(full, fn.params, from_node(fn.return_type), args)
 
-            # Registre stdlib
+            # Registre stdlib  (io.println, db.open, ai.train, …)
             sig = self._registry.fn_sig(full)
             if sig:
                 return sig.ret_type
 
-            # Symbole builtin (std.*) — arité inconnue, on accepte
+            # Symbole builtin injecté via _builtin_scope (io.print, io.println, …)
             sym = self._lookup(full)
             if sym:
+                return T_UNKN
+
+            # Module connu mais méthode non répertoriée → acceptable (on ne plante pas)
+            if mod in _KNOWN_MODULE_NAMES:
                 return T_UNKN
 
         # Méthode sur type struct

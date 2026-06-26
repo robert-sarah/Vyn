@@ -49,7 +49,29 @@ _TYPE_KINDS = {
     TokenKind.FN,
 }
 
-_IDENT_KINDS = {TokenKind.IDENT} | _TYPE_KINDS
+# Soft keywords : peuvent aussi être utilisés comme identifiants
+# (noms de variables, variantes d'enum, champs, paramètres, etc.)
+_SOFT_KEYWORDS = {
+    TokenKind.SOME, TokenKind.NONE, TokenKind.OK, TokenKind.ERR,
+    TokenKind.NIL,  TokenKind.TRUE, TokenKind.FALSE,
+    TokenKind.FOR,  TokenKind.WHILE, TokenKind.AS, TokenKind.WHERE,
+    TokenKind.AWAIT, TokenKind.DEFAULT, TokenKind.IN,
+    TokenKind.ASYNC, TokenKind.SYNC, TokenKind.TASK,
+    TokenKind.OWN,  TokenKind.REF,  TokenKind.HOT,
+    TokenKind.MOD,  TokenKind.USE,  TokenKind.IMPORT,
+    TokenKind.TYPE, TokenKind.CONST, TokenKind.ENUM,
+    TokenKind.STRUCT, TokenKind.IMPL, TokenKind.TRAIT,
+    TokenKind.SELF,  TokenKind.PUB,
+    TokenKind.LET,  TokenKind.MUT,
+    TokenKind.IF, TokenKind.ELSE, TokenKind.LOOP,
+    TokenKind.MATCH, TokenKind.CASE,
+    TokenKind.TRY, TokenKind.CATCH, TokenKind.THROW,
+    TokenKind.BREAK, TokenKind.CONTINUE, TokenKind.RETURN,
+    TokenKind.AND, TokenKind.OR, TokenKind.NOT,
+    TokenKind.EXTERN,
+}
+
+_IDENT_KINDS = {TokenKind.IDENT} | _TYPE_KINDS | _SOFT_KEYWORDS
 
 _ASSIGN_OPS = {
     TokenKind.EQ:        "=",
@@ -537,6 +559,21 @@ class Parser:
         # tuple (T1, T2, T3)
         if self._check(TokenKind.LPAREN):
             return self._parse_tuple_type()
+
+        # [T; N] ou [T] — tableau avec crochet en premier
+        if self._check(TokenKind.LBRACKET):
+            self._advance()
+            if self._check(TokenKind.RBRACKET):
+                # [] vide → array<void>
+                self._advance()
+                return TypeNode("array", [TypeNode("void")], None)
+            inner = self._parse_type()
+            size = None
+            if self._match(TokenKind.SEMI):
+                if self._check(TokenKind.INT):
+                    size = int(self._advance().value)
+            self._expect(TokenKind.RBRACKET)
+            return TypeNode("array", [inner], size)
 
         base = self._parse_type_name()
 
@@ -1381,31 +1418,32 @@ class Parser:
             self._advance()
             return BoolLiteral(False)
 
-        if tok.kind in (TokenKind.NIL, TokenKind.NONE):
+        # ── nil / None sans parenthèse ────────────────────────────────────────
+        if tok.kind == TokenKind.NIL:
             self._advance()
             return NilLiteral()
 
-        # ── None explicite ────────────────────────────────────────────────────
-        if tok.kind == TokenKind.NONE:
+        if tok.kind == TokenKind.NONE and not self._check_ahead(1, TokenKind.LPAREN):
             self._advance()
             return NoneExpr()
 
         # ── Some(…) / Ok(…) / Err(…) ─────────────────────────────────────────
-        if tok.kind == TokenKind.SOME:
+        # Seulement si suivi d'une parenthèse ouvrante (sinon c'est un ident)
+        if tok.kind == TokenKind.SOME and self._check_ahead(1, TokenKind.LPAREN):
             self._advance()
             self._expect(TokenKind.LPAREN)
             inner = self._parse_expr()
             self._expect(TokenKind.RPAREN)
             return SomeExpr(inner)
 
-        if tok.kind == TokenKind.OK:
+        if tok.kind == TokenKind.OK and self._check_ahead(1, TokenKind.LPAREN):
             self._advance()
             self._expect(TokenKind.LPAREN)
             inner = self._parse_expr()
             self._expect(TokenKind.RPAREN)
             return OkExpr(inner)
 
-        if tok.kind == TokenKind.ERR:
+        if tok.kind == TokenKind.ERR and self._check_ahead(1, TokenKind.LPAREN):
             self._advance()
             self._expect(TokenKind.LPAREN)
             inner = self._parse_expr()
@@ -1438,7 +1476,7 @@ class Parser:
             return Identifier(fn.name)  # référence la fonction
 
         # ── identifiant / appel / struct init ─────────────────────────────────
-        if tok.kind in _IDENT_KINDS:
+        if tok.kind in _IDENT_KINDS or (tok.value and tok.value.isidentifier()):
             return self._parse_ident_or_call()
 
         raise self._error(f"expression attendue, trouvé '{tok.value}'")
@@ -1620,10 +1658,17 @@ class Parser:
         tok = self._peek()
         if tok.kind in _IDENT_KINDS:
             return self._advance().value
+        # Accepter aussi les tokens qui ont une valeur textuelle utilisable comme ident
+        if tok.value and tok.value.isidentifier():
+            return self._advance().value
         raise self._error(f"identifiant attendu pour {role}, trouvé '{tok.value}'")
 
     def _expect_semi(self) -> None:
         """Attend un ';' ou l'ignore si absente (syntaxe flexible)."""
+        self._match(TokenKind.SEMI)
+
+    def _expect_semi_or_newline(self) -> None:
+        """Attend un ';' (tolerant)."""
         self._match(TokenKind.SEMI)
 
     def _match(self, kind: TokenKind) -> bool:

@@ -327,7 +327,7 @@ class StringLiteral:
 
 @dataclass
 class CharLiteral:
-    """Littéral caractère : 'a', '\n', '\u{1F600}'"""
+    """Litteral caractere : 'a', '\\n', '\\u{1F600}'"""
     value: str   # la chaîne Python de longueur 1
     span:  Span = field(default_factory=Span)
 
