@@ -994,9 +994,17 @@ class SemanticAnalyzer:
 
         # ── Modules définis par l'utilisateur (mod utils { … }) ──────────────
         # Si name est un préfixe de fonctions connues (ex: "utils.answer" → "utils")
+        prefix = name + "."
         for fn_key in self.functions:
-            if fn_key.startswith(name + "."):
+            if fn_key.startswith(prefix):
                 return T_UNKN  # namespace valide, pas une erreur
+        # Même chose pour les constantes de module (mod cfg { const LIMIT = 5 })
+        for const_key in self.consts:
+            if const_key.startswith(prefix):
+                return T_UNKN
+        # Et pour les globals enregistrés
+        if any(k.startswith(prefix) for k in self.type_aliases):
+            return T_UNKN
 
         # ── Enum variant (unit) — recherche globale ───────────────────────────
         for ename, edecl in self.enums.items():
